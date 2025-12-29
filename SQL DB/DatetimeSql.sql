@@ -1,0 +1,38 @@
+USE [Project]
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE VIEW [dbo].[GlobalSettings]
+AS
+
+SELECT        'Central Standard Time' AS TimeZone, CAST('2099-12-31 23:59:59.997' AS DATETIME) AS DefaultExpirationTime
+
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE FUNCTION [dbo].[UfnToUniversalTime](@utcTime DATETIME)
+RETURNS DATETIME
+AS BEGIN
+    DECLARE @localTime AS DATETIME;
+    SELECT @localTime = CAST(@utcTime AT TIME ZONE TimeZone AT TIME ZONE 'UTC' AS DATETIME) FROM GlobalSettings;
+    RETURN @localTime;
+END
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE FUNCTION [dbo].[UfnToLocalTime](@utcTime DATETIME)
+RETURNS DATETIME
+AS BEGIN
+    DECLARE @localTime AS DATETIME;
+    SELECT @localTime = CAST(@utcTime AT TIME ZONE 'UTC' AT TIME ZONE TimeZone AS DATETIME) FROM GlobalSettings;
+    RETURN @localTime;
+END
+GO
