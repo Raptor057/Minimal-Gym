@@ -17,6 +17,14 @@ public sealed class BootstrapController : ControllerBase
         _users = users;
     }
 
+    [HttpGet("status")]
+    [AllowAnonymous]
+    public async Task<ActionResult<object>> Status()
+    {
+        var count = await _users.GetCount();
+        return Ok(new { hasUsers = count > 0 });
+    }
+
     [HttpPost("first-admin")]
     [AllowAnonymous]
     public async Task<ActionResult<UserResponse>> CreateFirstAdmin([FromBody] UserCreateRequest request)

@@ -1,0 +1,42 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssqlserver-developer-edition
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_PID=Developer
+      - SA_PASSWORD=Cbmwjmkq27$*
+    volumes:
+      - sql-data:/var/opt/mssql
+    restart: always
+
+  webapi:
+    build:
+      context: ./Web Api/Team Beauty Brownsville
+      dockerfile: Dockerfile
+    container_name: team-beauty-brownsville-api
+    depends_on:
+      - sqlserver
+    ports:
+      - "5057:5057"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5057
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=MinimalGym;User Id=sa;Password=Cbmwjmkq27$*;TrustServerCertificate=True;
+
+  webclient:
+    build:
+      context: ./Web Client
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:5057
+    container_name: team-beauty-brownsville-web
+    depends_on:
+      - webapi
+    ports:
+      - "5173:80"
+
+volumes:
+  sql-data:
