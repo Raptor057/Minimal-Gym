@@ -344,7 +344,8 @@ export default function Login() {
       <div className="relative hidden w-0 flex-1 lg:block">
         <img
           alt=""
-          src="https://images.unsplash.com/photo-1496917756835-20cb06e75b4e?auto=format&fit=crop&w=1908&q=80"
+          // src="https://images.unsplash.com/photo-1496917756835-20cb06e75b4e?auto=format&fit=crop&w=1908&q=80"
+          src="https://media.raptor-server-services.com/media/Gym-girl-2.jpg"
           className="absolute inset-0 h-full w-full object-cover"
         />
       </div>
