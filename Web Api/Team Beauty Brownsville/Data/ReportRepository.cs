@@ -43,6 +43,25 @@ public sealed class ReportRepository : IReportRepository
         return rows.ToList();
     }
 
+    public async Task<SubscriptionsDueResponse> GetSubscriptionsDue(DateTime fromUtc, DateTime toUtc)
+    {
+        const string sql = """
+            SELECT COUNT(1) AS Count
+            FROM dbo.Subscriptions
+            WHERE Status = 'Active'
+              AND EndDate BETWEEN @FromUtc AND @ToUtc
+            """;
+
+        using var connection = _connectionFactory.Create();
+        var count = await connection.QuerySingleAsync<int>(sql, new
+        {
+            FromUtc = fromUtc,
+            ToUtc = toUtc
+        });
+
+        return new SubscriptionsDueResponse(fromUtc, toUtc, count);
+    }
+
     public async Task<SalesReportResponse> GetSalesReport(DateTime fromUtc, DateTime toUtc)
     {
         const string sql = """

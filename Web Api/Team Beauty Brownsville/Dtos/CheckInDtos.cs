@@ -9,3 +9,16 @@ public sealed record CheckInResponse(
     int? CreatedByUserId,
     string? MemberPhotoBase64
 );
+
+public sealed record CheckInScanResponse(
+    int MemberId,
+    string FullName,
+    string? Email,
+    string? Phone,
+    string? PhotoBase64,
+    bool IsActive,
+    bool HasActiveSubscription,
+    string? SubscriptionStatus,
+    DateTime? SubscriptionEndDate,
+    int? DaysToExpire
+);

@@ -43,6 +43,25 @@ public sealed class ReportsController : ControllerBase
         return Ok(rows);
     }
 
+    [HttpGet("subscriptions/due")]
+    public async Task<ActionResult<SubscriptionsDueResponse>> SubscriptionsDue([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        if (from is null || to is null)
+        {
+            return BadRequest("from and to are required (UTC).");
+        }
+
+        var fromUtc = DateTime.SpecifyKind(from.Value, DateTimeKind.Utc);
+        var toUtc = DateTime.SpecifyKind(to.Value, DateTimeKind.Utc);
+        if (fromUtc > toUtc)
+        {
+            return BadRequest("from must be <= to.");
+        }
+
+        var result = await _reports.GetSubscriptionsDue(fromUtc, toUtc);
+        return Ok(result);
+    }
+
     [HttpGet("sales")]
     public async Task<ActionResult<SalesReportResponse>> Sales([FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {

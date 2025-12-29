@@ -12,6 +12,8 @@ public sealed record StatusCountResponse(string Status, int Count);
 
 public sealed record SalesReportResponse(DateTime FromUtc, DateTime ToUtc, int Count, decimal TotalUsd);
 
+public sealed record SubscriptionsDueResponse(DateTime FromUtc, DateTime ToUtc, int Count);
+
 public sealed record LowStockItemResponse(
     int ProductId,
     string Sku,
