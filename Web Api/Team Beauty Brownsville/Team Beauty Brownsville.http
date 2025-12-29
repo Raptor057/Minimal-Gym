@@ -1,0 +1,6 @@
+@Team_Beauty_Brownsville_HostAddress = http://localhost:5057
+
+GET {{Team_Beauty_Brownsville_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
