@@ -9,8 +9,8 @@ const initialStats = {
   cashOpen: '--',
 }
 
-const getUtcDayRange = (date) => {
-  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+const getLocalDayRange = (date) => {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
   const end = start + 24 * 60 * 60 * 1000
   return { start, end }
 }
@@ -37,7 +37,7 @@ export default function Dashboard() {
         const activeMembers = members.filter((member) => member.isActive).length
 
         const checkins = Array.isArray(checkinsRes.data) ? checkinsRes.data : []
-        const todayRange = getUtcDayRange(new Date())
+        const todayRange = getLocalDayRange(new Date())
         const todayCheckIns = checkins.filter((checkin) => {
           const timestamp = new Date(checkin.checkedInAtUtc).getTime()
           return timestamp >= todayRange.start && timestamp < todayRange.end
