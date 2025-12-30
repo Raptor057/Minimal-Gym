@@ -5,5 +5,6 @@ namespace Team_Beauty_Brownsville.Data;
 public interface IConfigRepository
 {
     Task<Config?> Get();
-    Task Update(decimal? taxRate, string? receiptPrefix, int? nextReceiptNo);
+    Task Update(decimal? taxRate, string? receiptPrefix, int? nextReceiptNo, string? logoBase64);
+    Task<string?> ClaimNextReceiptNumber();
 }

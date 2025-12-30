@@ -10,7 +10,7 @@ const emptyForm = {
   email: '',
   phone: '',
   photoBase64: '',
-  roles: '',
+  roles: [],
   isActive: true,
   isLocked: false,
 }
@@ -26,6 +26,7 @@ export default function Users() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [photoPreview, setPhotoPreview] = useState('')
+  const [roleOptions, setRoleOptions] = useState([])
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -42,6 +43,14 @@ export default function Users() {
 
   useEffect(() => {
     fetchUsers()
+    api
+      .get('/users/roles')
+      .then((response) => {
+        setRoleOptions(Array.isArray(response.data) ? response.data : [])
+      })
+      .catch(() => {
+        setRoleOptions([])
+      })
   }, [])
 
   const filtered = useMemo(() => {
@@ -60,7 +69,7 @@ export default function Users() {
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   const openCreate = () => {
-    setForm(emptyForm)
+    setForm({ ...emptyForm, roles: roleOptions.includes('User') ? ['User'] : [] })
     setPhotoPreview('')
     setModalOpen(true)
   }
@@ -74,7 +83,7 @@ export default function Users() {
       email: user.email ?? '',
       phone: user.phone ?? '',
       photoBase64: user.photoBase64 ?? '',
-      roles: Array.isArray(user.roles) ? user.roles.join(', ') : '',
+      roles: Array.isArray(user.roles) ? user.roles : [],
       isActive: user.isActive ?? true,
       isLocked: user.isLocked ?? false,
     })
@@ -108,14 +117,16 @@ export default function Users() {
     event.preventDefault()
     setSaving(true)
     setError('')
-    const roles = form.roles
-      .split(',')
-      .map((role) => role.trim())
-      .filter(Boolean)
+    const roles = Array.isArray(form.roles) ? form.roles : []
 
     try {
       if (!form.userName.trim() || !form.fullName.trim()) {
         setError('UserName and FullName are required.')
+        return
+      }
+
+      if (roles.length === 0) {
+        setError('Select at least one role.')
         return
       }
 
@@ -242,7 +253,7 @@ export default function Users() {
                     </div>
                   </td>
                   <td className="px-4 py-4 text-slate-600">
-                    {(user.roles ?? []).length ? user.roles.join(', ') : '—'}
+                    {(user.roles ?? []).length ? user.roles.join(', ') : 'No roles'}
                   </td>
                   <td className="px-4 py-4">
                     <span
@@ -368,13 +379,39 @@ export default function Users() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Roles (comma)
+                    Roles
                   </label>
-                  <input
-                    value={form.roles}
-                    onChange={(event) => setForm({ ...form, roles: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {roleOptions.length === 0 ? (
+                      <div className="text-xs text-slate-400">No roles available.</div>
+                    ) : (
+                      roleOptions.map((role) => {
+                        const selected = form.roles.includes(role)
+                        return (
+                          <label
+                            key={role}
+                            className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                              selected
+                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                : 'border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={(event) => {
+                                const next = event.target.checked
+                                  ? [...form.roles, role]
+                                  : form.roles.filter((item) => item !== role)
+                                setForm({ ...form, roles: next })
+                              }}
+                            />
+                            {role}
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">

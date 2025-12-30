@@ -16,6 +16,7 @@ const emptyClose = {
 export default function Cash() {
   const [current, setCurrent] = useState(null)
   const [closures, setClosures] = useState([])
+  const [movements, setMovements] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openModal, setOpenModal] = useState(false)
@@ -48,10 +49,19 @@ export default function Cash() {
     }
   }
 
+  const loadMovements = async () => {
+    try {
+      const { data } = await api.get('/cash/movements')
+      setMovements(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(err?.response?.data ?? 'Unable to load cash movements.')
+    }
+  }
+
   useEffect(() => {
     setLoading(true)
     setError('')
-    Promise.all([loadCurrent(), loadClosures()]).finally(() => setLoading(false))
+    Promise.all([loadCurrent(), loadClosures(), loadMovements()]).finally(() => setLoading(false))
   }, [])
 
   const openCash = () => {
@@ -106,6 +116,7 @@ export default function Cash() {
       })
       setMovementModal(false)
       setMovementForm(emptyMovement)
+      await loadMovements()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to add cash movement.')
     } finally {
@@ -136,6 +147,7 @@ export default function Cash() {
       setCloseForm(emptyClose)
       await loadCurrent()
       await loadClosures()
+      await loadMovements()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to close cash session.')
     } finally {
@@ -243,6 +255,45 @@ export default function Cash() {
                   <td className="px-4 py-4 text-slate-500">{session.closedAtUtc ?? '-'}</td>
                   <td className="px-4 py-4 text-slate-500">${session.openingAmountUsd}</td>
                   <td className="px-4 py-4 text-slate-500">{session.status}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Movements</h3>
+            <p className="text-xs text-slate-500">Cash in/out history.</p>
+          </div>
+        </div>
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Session</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Amount</th>
+              <th className="px-4 py-3">Notes</th>
+              <th className="px-4 py-3">Date</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {movements.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
+                  No movements yet.
+                </td>
+              </tr>
+            ) : (
+              movements.map((movement) => (
+                <tr key={movement.id} className="hover:bg-slate-50/60">
+                  <td className="px-4 py-4 text-slate-900">#{movement.cashSessionId}</td>
+                  <td className="px-4 py-4 text-slate-600">{movement.movementType}</td>
+                  <td className="px-4 py-4 text-slate-600">${movement.amountUsd}</td>
+                  <td className="px-4 py-4 text-slate-500">{movement.notes ?? '-'}</td>
+                  <td className="px-4 py-4 text-slate-400">{movement.createdAtUtc}</td>
                 </tr>
               ))
             )}

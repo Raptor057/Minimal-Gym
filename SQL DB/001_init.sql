@@ -139,6 +139,12 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.Config', 'LogoBase64') IS NULL
+BEGIN
+  ALTER TABLE dbo.Config ADD LogoBase64 NVARCHAR(MAX) NULL;
+END
+GO
+
 IF OBJECT_ID(N'dbo.CheckIns', N'U') IS NULL
 BEGIN
   CREATE TABLE dbo.CheckIns (
@@ -389,6 +395,20 @@ IF NOT EXISTS (SELECT 1 FROM dbo.PaymentMethods)
 BEGIN
   INSERT INTO dbo.PaymentMethods (Name)
   VALUES (N'Cash'), (N'Card'), (N'Transfer'), (N'Other');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Name = N'Admin')
+BEGIN
+  INSERT INTO dbo.Roles (Name)
+  VALUES (N'Admin');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Name = N'User')
+BEGIN
+  INSERT INTO dbo.Roles (Name)
+  VALUES (N'User');
 END
 GO
 

@@ -35,6 +35,23 @@ public sealed class UsersController : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("roles")]
+    public async Task<ActionResult<IEnumerable<string>>> GetRoles()
+    {
+        var roles = await _users.GetAllRoleNames();
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Admin",
+            "User"
+        };
+        var filtered = roles
+            .Where(role => allowed.Contains(role))
+            .OrderBy(role => role)
+            .ToList();
+
+        return Ok(filtered);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<UserResponse>> GetById(int id)
     {
@@ -74,10 +91,10 @@ public sealed class UsersController : ControllerBase
 
         var id = await _users.Create(user);
 
-        if (request.Roles is { Length: > 0 })
-        {
-            await _users.SetRolesForUser(id, request.Roles);
-        }
+        var rolesToAssign = request.Roles is { Length: > 0 }
+            ? request.Roles
+            : new[] { "User" };
+        await _users.SetRolesForUser(id, rolesToAssign);
 
         var created = await _users.GetById(id);
         var roles = await _users.GetRolesForUser(id);
@@ -92,6 +109,11 @@ public sealed class UsersController : ControllerBase
         if (existing is null)
         {
             return NotFound();
+        }
+
+        if (await WouldRemoveLastAdmin(existing, request.Roles, request.IsActive))
+        {
+            return BadRequest("At least one active Admin user is required.");
         }
 
         string? passwordHash = null;
@@ -113,6 +135,10 @@ public sealed class UsersController : ControllerBase
 
         if (request.Roles is not null)
         {
+            if (request.Roles.Length == 0)
+            {
+                return BadRequest("At least one role is required.");
+            }
             await _users.SetRolesForUser(id, request.Roles);
         }
 
@@ -129,6 +155,11 @@ public sealed class UsersController : ControllerBase
         if (existing is null)
         {
             return NotFound();
+        }
+
+        if (await WouldRemoveLastAdmin(existing, null, false))
+        {
+            return BadRequest("At least one active Admin user is required.");
         }
 
         await _users.SoftDelete(id, DateTime.UtcNow);
@@ -154,5 +185,38 @@ public sealed class UsersController : ControllerBase
             user.IsActive,
             user.IsLocked,
             roles?.ToArray() ?? Array.Empty<string>());
+    }
+
+    private async Task<bool> WouldRemoveLastAdmin(User existing, string[]? newRoles, bool? newIsActive)
+    {
+        var users = await _users.GetAll();
+        var roleLookup = await _users.GetRolesByUserIds(users.Select(user => user.Id));
+
+        var currentIsActive = existing.IsActive;
+        var willBeActive = newIsActive ?? currentIsActive;
+
+        var isAdminNow = roleLookup.TryGetValue(existing.Id, out var roles) &&
+                         roles.Any(role => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
+        var willBeAdmin = newRoles is null
+            ? isAdminNow
+            : newRoles.Any(role => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
+
+        if (willBeActive && willBeAdmin)
+        {
+            return false;
+        }
+
+        var activeAdmins = users.Count(user =>
+        {
+            if (!user.IsActive || user.Id == existing.Id)
+            {
+                return false;
+            }
+
+            return roleLookup.TryGetValue(user.Id, out var userRoles) &&
+                   userRoles.Any(role => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
+        });
+
+        return activeAdmins == 0 && isAdminNow && currentIsActive;
     }
 }

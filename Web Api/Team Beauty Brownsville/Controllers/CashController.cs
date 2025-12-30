@@ -66,6 +66,13 @@ public sealed class CashController : ControllerBase
         return session is null ? NotFound() : Ok(ToResponse(session));
     }
 
+    [HttpGet("cash/movements")]
+    public async Task<ActionResult<IEnumerable<CashMovementResponse>>> GetMovements([FromQuery] int? cashSessionId)
+    {
+        var rows = await _cash.GetMovements(cashSessionId);
+        return Ok(rows.Select(ToMovementResponse));
+    }
+
     [HttpPost("cash/movements")]
     public async Task<IActionResult> AddMovement([FromBody] CashMovementCreateRequest request)
     {
@@ -151,5 +158,17 @@ public sealed class CashController : ControllerBase
             session.Status,
             session.ClosedByUserId,
             session.ClosedAtUtc);
+    }
+
+    private static CashMovementResponse ToMovementResponse(CashMovement movement)
+    {
+        return new CashMovementResponse(
+            movement.Id,
+            movement.CashSessionId,
+            movement.MovementType,
+            movement.AmountUsd,
+            movement.Notes,
+            movement.CreatedAtUtc,
+            movement.CreatedByUserId);
     }
 }

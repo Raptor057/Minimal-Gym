@@ -22,3 +22,15 @@ public sealed record CheckInScanResponse(
     DateTime? SubscriptionEndDate,
     int? DaysToExpire
 );
+
+public sealed record CheckInPublicResponse(
+    int Id,
+    string FullName,
+    string? PhotoBase64,
+    bool IsActive,
+    string? SubscriptionStatus,
+    DateTime? SubscriptionEndDate,
+    int? DaysToExpire,
+    bool HasActiveSubscription,
+    DateTime CheckedInAtUtc
+);

@@ -8,11 +8,13 @@ export default function Config() {
     taxRate: '',
     receiptPrefix: '',
     nextReceiptNo: '',
+    logoBase64: '',
   })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [logoPreview, setLogoPreview] = useState('')
 
   const loadConfig = async () => {
     setLoading(true)
@@ -24,7 +26,9 @@ export default function Config() {
         taxRate: data.taxRate ?? '',
         receiptPrefix: data.receiptPrefix ?? '',
         nextReceiptNo: data.nextReceiptNo ?? '',
+        logoBase64: data.logoBase64 ?? '',
       })
+      setLogoPreview(data.logoBase64 ?? '')
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to load config.')
     } finally {
@@ -57,6 +61,7 @@ export default function Config() {
         taxRate: taxRateValue,
         receiptPrefix: form.receiptPrefix?.trim() || null,
         nextReceiptNo: nextReceiptValue,
+        logoBase64: form.logoBase64 || null,
       })
       setMessage('Config updated.')
       await loadConfig()
@@ -100,6 +105,54 @@ export default function Config() {
           <div className="text-sm text-slate-500">Loading config...</div>
         ) : (
           <form onSubmit={handleSave} className="space-y-6">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Logo (optional)
+              </label>
+              <div className="mt-2 flex flex-wrap items-center gap-4">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (!file) return
+                    if (!file.type.startsWith('image/')) {
+                      setError('Only image files are allowed.')
+                      return
+                    }
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                      const result = typeof reader.result === 'string' ? reader.result : ''
+                      setForm((prev) => ({ ...prev, logoBase64: result }))
+                      setLogoPreview(result)
+                    }
+                    reader.readAsDataURL(file)
+                  }}
+                  className="block w-full max-w-sm text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-[0.2em] file:text-slate-600"
+                />
+                <div className="flex items-center gap-3">
+                  {logoPreview ? (
+                    <img
+                      src={logoPreview}
+                      alt="Logo preview"
+                      className="h-14 w-14 rounded-full object-cover ring-2 ring-indigo-500/30"
+                    />
+                  ) : (
+                    <div className="h-14 w-14 rounded-full bg-slate-100" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, logoBase64: '' }))
+                      setLogoPreview('')
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+                  >
+                    Clear logo
+                  </button>
+                </div>
+              </div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Currency</label>

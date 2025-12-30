@@ -62,6 +62,25 @@ public sealed class CashRepository : ICashRepository
         await connection.ExecuteAsync(sql, movement);
     }
 
+    public async Task<IReadOnlyList<CashMovement>> GetMovements(int? cashSessionId)
+    {
+        var sql = """
+            SELECT Id, CashSessionId, MovementType, AmountUsd, Notes, CreatedAtUtc, CreatedByUserId
+            FROM dbo.CashMovements
+            """;
+
+        if (cashSessionId is not null)
+        {
+            sql += " WHERE CashSessionId = @CashSessionId";
+        }
+
+        sql += " ORDER BY Id DESC";
+
+        using var connection = _connectionFactory.Create();
+        var rows = await connection.QueryAsync<CashMovement>(sql, new { CashSessionId = cashSessionId });
+        return rows.ToList();
+    }
+
     public async Task CloseSession(CashClosure closure)
     {
         const string closeSql = """

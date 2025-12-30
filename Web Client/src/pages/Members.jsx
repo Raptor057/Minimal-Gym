@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react'
+import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
+import QRCode from 'qrcode'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
@@ -14,9 +17,29 @@ const emptyForm = {
   isActive: true,
 }
 
+const toInputDateValue = (value) => {
+  if (!value) return ''
+  if (typeof value !== 'string') return ''
+  const isoDate = /^\d{4}-\d{2}-\d{2}/
+  if (isoDate.test(value)) {
+    return value.slice(0, 10)
+  }
+  const usDate = /^(\d{2})\/(\d{2})\/(\d{4})/
+  const match = value.match(usDate)
+  if (match) {
+    const [, month, day, year] = match
+    return `${year}-${month}-${day}`
+  }
+  return ''
+}
+
+const classNames = (...classes) => classes.filter(Boolean).join(' ')
+
 export default function Members() {
   const [members, setMembers] = useState([])
   const [search, setSearch] = useState('')
+  const [memberQuery, setMemberQuery] = useState('')
+  const [selectedMember, setSelectedMember] = useState(null)
   const [page, setPage] = useState(1)
   const [pageSize] = useState(8)
   const [loading, setLoading] = useState(false)
@@ -25,6 +48,9 @@ export default function Members() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [photoPreview, setPhotoPreview] = useState('')
+  const [qrOpen, setQrOpen] = useState(false)
+  const [qrMember, setQrMember] = useState(null)
+  const [qrDataUrl, setQrDataUrl] = useState('')
 
   const fetchMembers = async () => {
     setLoading(true)
@@ -43,6 +69,58 @@ export default function Members() {
     fetchMembers()
   }, [])
 
+  useEffect(() => {
+    let isMounted = true
+    const generate = async () => {
+      if (!qrOpen || !qrMember) return
+      try {
+        const qrCanvas = document.createElement('canvas')
+        await QRCode.toCanvas(qrCanvas, String(qrMember.id), {
+          width: 240,
+          margin: 2,
+        })
+
+        const nameLine = qrMember.fullName ?? 'Member'
+        const idLine = `ID: ${qrMember.id}`
+        const padding = 12
+        const lineHeight = 18
+        const textBlockHeight = lineHeight * 2 + 6
+        const finalCanvas = document.createElement('canvas')
+        finalCanvas.width = qrCanvas.width
+        finalCanvas.height = qrCanvas.height + textBlockHeight + padding
+
+        const ctx = finalCanvas.getContext('2d')
+        if (!ctx) {
+          throw new Error('Unable to generate QR image.')
+        }
+
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+        ctx.drawImage(qrCanvas, 0, 0)
+
+        ctx.fillStyle = '#0f172a'
+        ctx.font = '600 14px system-ui, -apple-system, "Segoe UI", sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.fillText(nameLine, finalCanvas.width / 2, qrCanvas.height + 4)
+        ctx.font = '500 12px system-ui, -apple-system, "Segoe UI", sans-serif'
+        ctx.fillText(idLine, finalCanvas.width / 2, qrCanvas.height + 4 + lineHeight)
+
+        const url = finalCanvas.toDataURL('image/png')
+        if (isMounted) {
+          setQrDataUrl(url)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err?.message ?? 'Unable to generate QR code.')
+        }
+      }
+    }
+    generate()
+    return () => {
+      isMounted = false
+    }
+  }, [qrOpen, qrMember])
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return members
@@ -54,6 +132,14 @@ export default function Members() {
       )
     })
   }, [search, members])
+
+  const filteredMembers =
+    memberQuery.trim() === ''
+      ? members
+      : members.filter((member) => {
+          const name = member.fullName?.toLowerCase() ?? ''
+          return name.includes(memberQuery.trim().toLowerCase())
+        })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
@@ -70,7 +156,7 @@ export default function Members() {
       fullName: member.fullName ?? '',
       phone: member.phone ?? '',
       email: member.email ?? '',
-      birthDate: member.birthDate ? member.birthDate.slice(0, 10) : '',
+      birthDate: toInputDateValue(member.birthDate),
       emergencyContact: member.emergencyContact ?? '',
       notes: member.notes ?? '',
       photoBase64: member.photoBase64 ?? '',
@@ -78,6 +164,18 @@ export default function Members() {
     })
     setPhotoPreview(member.photoBase64 ?? '')
     setModalOpen(true)
+  }
+
+  const openQr = (member) => {
+    setQrMember(member)
+    setQrDataUrl('')
+    setQrOpen(true)
+  }
+
+  const closeQr = () => {
+    setQrOpen(false)
+    setQrMember(null)
+    setQrDataUrl('')
   }
 
   const closeModal = () => {
@@ -162,15 +260,72 @@ export default function Members() {
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
-        <input
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value)
-            setPage(1)
-          }}
-          placeholder="Search members..."
-          className="h-10 w-full max-w-sm rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-        />
+        <div className="w-full max-w-sm">
+          <Combobox
+            value={selectedMember}
+            onChange={(member) => {
+              setSelectedMember(member)
+              if (member) {
+                setSearch(member.fullName ?? '')
+              } else {
+                setSearch('')
+              }
+              setMemberQuery('')
+              setPage(1)
+            }}
+          >
+            <div className="relative">
+              <ComboboxInput
+                className="h-10 w-full rounded-full border border-slate-200 bg-white py-2 pr-10 pl-10 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                displayValue={(member) => member?.fullName ?? ''}
+                placeholder="Search members..."
+                onChange={(event) => {
+                  setMemberQuery(event.target.value)
+                  setSearch(event.target.value)
+                  setSelectedMember(null)
+                  setPage(1)
+                }}
+              />
+              <MagnifyingGlassIcon
+                className="pointer-events-none absolute left-3 top-2.5 size-5 text-slate-400"
+                aria-hidden="true"
+              />
+            </div>
+            <ComboboxOptions className="mt-2 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-2 text-sm shadow-lg">
+              {selectedMember ? (
+                <ComboboxOption
+                  value={null}
+                  className={({ active }) =>
+                    classNames(
+                      'cursor-default select-none px-4 py-2 text-slate-500',
+                      active && 'bg-slate-100 text-slate-900'
+                    )
+                  }
+                >
+                  Clear selection
+                </ComboboxOption>
+              ) : null}
+              {filteredMembers.length === 0 ? (
+                <div className="px-4 py-2 text-slate-500">No members found.</div>
+              ) : (
+                filteredMembers.map((member) => (
+                  <ComboboxOption
+                    key={member.id}
+                    value={member}
+                    className={({ active }) =>
+                      classNames(
+                        'cursor-default select-none px-4 py-2 text-slate-700',
+                        active && 'bg-slate-100 text-slate-900'
+                      )
+                    }
+                  >
+                    {member.fullName}
+                  </ComboboxOption>
+                ))
+              )}
+            </ComboboxOptions>
+          </Combobox>
+        </div>
         <div className="text-sm text-slate-500">
           {filtered.length} members • page {page} of {totalPages}
         </div>
@@ -186,6 +341,7 @@ export default function Members() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
             <tr>
+              <th className="px-4 py-3">ID</th>
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Contact</th>
               <th className="px-4 py-3">Status</th>
@@ -195,19 +351,20 @@ export default function Members() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={4}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
                   Loading members...
                 </td>
               </tr>
             ) : paged.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={4}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
                   No members found.
                 </td>
               </tr>
             ) : (
               paged.map((member) => (
                 <tr key={member.id} className="hover:bg-slate-50/60">
+                  <td className="px-4 py-4 text-slate-500">{member.id}</td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 overflow-hidden rounded-full bg-indigo-50 text-indigo-600">
@@ -240,6 +397,12 @@ export default function Members() {
                   </td>
                   <td className="px-4 py-4 text-right">
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => openQr(member)}
+                        className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                      >
+                        QR
+                      </button>
                       <button
                         onClick={() => openEdit(member)}
                         className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
@@ -412,6 +575,42 @@ export default function Members() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {qrOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
+          <div className="w-full max-w-sm transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display text-xl text-slate-900">Member QR</h3>
+                <p className="mt-1 text-sm text-slate-500">Scan to check in.</p>
+              </div>
+              <button onClick={closeQr} className="text-sm text-slate-500 hover:text-slate-900">
+                Close
+              </button>
+            </div>
+            <div className="mt-6 flex flex-col items-center gap-3">
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt={`Member ${qrMember?.id}`} className="h-56 w-56" />
+              ) : (
+                <div className="h-56 w-56 animate-pulse rounded-2xl bg-slate-100" />
+              )}
+              <div className="text-center">
+                <div className="text-sm font-semibold text-slate-900">{qrMember?.fullName ?? 'Member'}</div>
+                <div className="text-xs text-slate-500">ID: {qrMember?.id ?? '-'}</div>
+              </div>
+              {qrDataUrl ? (
+                <a
+                  href={qrDataUrl}
+                  download={`member-${qrMember?.id ?? 'qr'}.png`}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Download QR
+                </a>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

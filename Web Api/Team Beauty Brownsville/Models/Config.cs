@@ -7,5 +7,6 @@ public sealed class Config
     public decimal TaxRate { get; set; }
     public string? ReceiptPrefix { get; set; }
     public int NextReceiptNo { get; set; }
+    public string? LogoBase64 { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

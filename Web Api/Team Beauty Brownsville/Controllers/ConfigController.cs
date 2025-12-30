@@ -21,6 +21,7 @@ public sealed class ConfigController : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<ConfigResponse>> Get()
     {
         var config = await _config.Get();
@@ -33,7 +34,8 @@ public sealed class ConfigController : ControllerBase
             config.CurrencyCode,
             config.TaxRate,
             config.ReceiptPrefix,
-            config.NextReceiptNo));
+            config.NextReceiptNo,
+            config.LogoBase64));
     }
 
     [HttpPut]
@@ -42,9 +44,10 @@ public sealed class ConfigController : ControllerBase
         await _config.Update(
             request.TaxRate,
             request.ReceiptPrefix?.Trim(),
-            request.NextReceiptNo);
+            request.NextReceiptNo,
+            request.LogoBase64);
 
-        await _audit.LogAsync("Update", "Config", "1", GetUserId(), new { request.TaxRate, request.ReceiptPrefix, request.NextReceiptNo });
+        await _audit.LogAsync("Update", "Config", "1", GetUserId(), new { request.TaxRate, request.ReceiptPrefix, request.NextReceiptNo, HasLogo = request.LogoBase64 is not null });
         return NoContent();
     }
 

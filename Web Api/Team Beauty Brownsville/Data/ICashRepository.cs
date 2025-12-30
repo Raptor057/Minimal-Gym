@@ -8,5 +8,6 @@ public interface ICashRepository
     Task<IReadOnlyList<CashSession>> GetClosures();
     Task<int> OpenSession(CashSession session);
     Task AddMovement(CashMovement movement);
+    Task<IReadOnlyList<CashMovement>> GetMovements(int? cashSessionId);
     Task CloseSession(CashClosure closure);
 }

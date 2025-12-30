@@ -27,3 +27,13 @@ public sealed record CashSessionResponse(
     int? ClosedByUserId,
     DateTime? ClosedAtUtc
 );
+
+public sealed record CashMovementResponse(
+    int Id,
+    int CashSessionId,
+    string MovementType,
+    decimal AmountUsd,
+    string? Notes,
+    DateTime CreatedAtUtc,
+    int CreatedByUserId
+);

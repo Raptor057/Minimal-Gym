@@ -16,17 +16,20 @@ public sealed class CheckInsController : ControllerBase
     private readonly IMemberRepository _members;
     private readonly ISubscriptionRepository _subscriptions;
     private readonly IAuditService _audit;
+    private readonly CheckInStream _stream;
 
     public CheckInsController(
         ICheckInRepository checkins,
         IMemberRepository members,
         ISubscriptionRepository subscriptions,
-        IAuditService audit)
+        IAuditService audit,
+        CheckInStream stream)
     {
         _checkins = checkins;
         _members = members;
         _subscriptions = subscriptions;
         _audit = audit;
+        _stream = stream;
     }
 
     [HttpGet]
@@ -71,6 +74,62 @@ public sealed class CheckInsController : ControllerBase
             daysToExpire));
     }
 
+    [HttpGet("today")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IEnumerable<CheckInPublicResponse>>> GetToday()
+    {
+        var now = DateTime.UtcNow;
+        var list = await _checkins.GetTodayWithMemberSummary(now);
+        var response = list.Select(item =>
+        {
+            int? daysToExpire = null;
+            if (item.SubscriptionEndDate is not null)
+            {
+                var diff = (item.SubscriptionEndDate.Value.Date - now.Date).Days;
+                daysToExpire = Math.Max(0, diff);
+            }
+
+            var hasActiveSubscription = string.Equals(item.SubscriptionStatus, "Active", StringComparison.OrdinalIgnoreCase);
+
+            return new CheckInPublicResponse(
+                item.Id,
+                item.FullName,
+                item.PhotoBase64,
+                item.IsActive,
+                item.SubscriptionStatus,
+                item.SubscriptionEndDate,
+                daysToExpire,
+                hasActiveSubscription,
+                item.CheckedInAtUtc);
+        });
+
+        return Ok(response);
+    }
+
+    [HttpGet("stream")]
+    [AllowAnonymous]
+    public async Task Stream()
+    {
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
+        Response.ContentType = "text/event-stream";
+
+        var id = _stream.Subscribe(out var reader);
+        try
+        {
+            await foreach (var message in reader.ReadAllAsync(HttpContext.RequestAborted))
+            {
+                await Response.WriteAsync($"data: {message}\n\n");
+                await Response.Body.FlushAsync();
+            }
+        }
+        finally
+        {
+            _stream.Unsubscribe(id);
+        }
+    }
+
     [HttpPost]
     [AllowAnonymous]
     public async Task<ActionResult<CheckInResponse>> Create([FromBody] CheckInCreateRequest request)
@@ -104,6 +163,14 @@ public sealed class CheckInsController : ControllerBase
         checkIn.Id = id;
         var response = new CheckInResponse(checkIn.Id, checkIn.MemberId, checkIn.CheckedInAtUtc, checkIn.CreatedByUserId, member.PhotoBase64);
         await _audit.LogAsync("Create", "CheckIn", id.ToString(), GetUserId(), new { request.MemberId, CheckedInAtUtc = checkedInAtUtc });
+        _stream.Publish(new
+        {
+            id,
+            memberId = member.Id,
+            fullName = member.FullName,
+            photoBase64 = member.PhotoBase64,
+            checkedInAtUtc = checkIn.CheckedInAtUtc
+        });
 
         return CreatedAtAction(nameof(GetAll), new { id }, response);
     }

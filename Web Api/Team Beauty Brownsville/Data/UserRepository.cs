@@ -50,6 +50,20 @@ public sealed class UserRepository : IUserRepository
         return users.ToList();
     }
 
+    public async Task<IReadOnlyList<User>> GetPublicUsers()
+    {
+        const string sql = """
+            SELECT Id, UserName, FullName, PhotoBase64
+            FROM dbo.Users
+            WHERE IsActive = 1
+            ORDER BY FullName ASC
+            """;
+
+        using var connection = _connectionFactory.Create();
+        var users = await connection.QueryAsync<User>(sql);
+        return users.ToList();
+    }
+
     public async Task<int> GetCount()
     {
         const string sql = "SELECT COUNT(1) FROM dbo.Users";
@@ -191,6 +205,20 @@ public sealed class UserRepository : IUserRepository
         }
 
         transaction.Commit();
+    }
+
+    public async Task<IReadOnlyList<string>> GetAllRoleNames()
+    {
+        const string sql = """
+            SELECT Name
+            FROM dbo.Roles
+            WHERE IsActive = 1
+            ORDER BY Name ASC
+            """;
+
+        using var connection = _connectionFactory.Create();
+        var roles = await connection.QueryAsync<string>(sql);
+        return roles.ToList();
     }
 
     public async Task CreateRefreshToken(int userId, string token, DateTime expiresAtUtc, string? createdByIp)

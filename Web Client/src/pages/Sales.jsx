@@ -2,17 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
-const emptyItem = { productId: '', quantity: '1', unitPriceUsd: '', discountUsd: '0', taxUsd: '0' }
+const emptyItem = { productId: '', quantity: '1', unitPriceUsd: '', discountUsd: '0', taxUsd: '' }
 
 export default function Sales() {
   const [sales, setSales] = useState([])
   const [products, setProducts] = useState([])
   const [members, setMembers] = useState([])
   const [methods, setMethods] = useState([])
+  const [config, setConfig] = useState(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [details, setDetails] = useState(null)
   const [items, setItems] = useState([emptyItem])
   const [form, setForm] = useState({
     memberId: '',
@@ -37,14 +41,19 @@ export default function Sales() {
   }
 
   const loadFormData = async () => {
-    const [productsRes, membersRes, methodsRes] = await Promise.all([
+    const [productsRes, membersRes, methodsRes, configRes] = await Promise.all([
       api.get('/products'),
       api.get('/members'),
       api.get('/payment-methods'),
+      api.get('/config').catch((err) => {
+        if (err?.response?.status === 404) return { data: null }
+        throw err
+      }),
     ])
     setProducts(Array.isArray(productsRes.data) ? productsRes.data : [])
     setMembers(Array.isArray(membersRes.data) ? membersRes.data : [])
     setMethods(Array.isArray(methodsRes.data) ? methodsRes.data : [])
+    setConfig(configRes?.data ?? null)
   }
 
   useEffect(() => {
@@ -84,12 +93,26 @@ export default function Sales() {
     setItems((prev) => prev.filter((_, idx) => idx !== index))
   }
 
+  const taxRate = Number(config?.taxRate ?? 0)
+  const getLineTax = (item) => {
+    if (item.taxUsd !== '' && item.taxUsd !== null && item.taxUsd !== undefined) {
+      return Number(item.taxUsd || 0)
+    }
+    if (!taxRate) return 0
+    const qty = Number(item.quantity || 0)
+    const price = Number(item.unitPriceUsd || 0)
+    const discount = Number(item.discountUsd || 0)
+    const base = qty * price - discount
+    if (base <= 0) return 0
+    return Math.round(base * taxRate * 100) / 100
+  }
+
   const totals = items.reduce(
     (acc, item) => {
       const qty = Number(item.quantity || 0)
       const price = Number(item.unitPriceUsd || 0)
       const discount = Number(item.discountUsd || 0)
-      const tax = Number(item.taxUsd || 0)
+      const tax = getLineTax(item)
       const line = qty * price - discount + tax
       acc.subtotal += qty * price
       acc.discount += discount
@@ -136,7 +159,7 @@ export default function Sales() {
           quantity: Number(item.quantity),
           unitPriceUsd: Number(item.unitPriceUsd),
           discountUsd: Number(item.discountUsd || 0),
-          taxUsd: Number(item.taxUsd || 0),
+          taxUsd: getLineTax(item),
         })),
       }
 
@@ -166,6 +189,29 @@ export default function Sales() {
       setError(err?.response?.data ?? 'Unable to refund sale.')
     }
   }
+
+  const openDetails = async (saleId) => {
+    setDetailsLoading(true)
+    setDetailsOpen(true)
+    setDetails(null)
+    setError('')
+    try {
+      const { data } = await api.get(`/sales/${saleId}/details`)
+      setDetails(data)
+    } catch (err) {
+      setError(err?.response?.data ?? 'Unable to load sale details.')
+      setDetailsOpen(false)
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const closeDetails = () => {
+    setDetailsOpen(false)
+    setDetails(null)
+  }
+
+  const suggestedReceipt = config ? `${config.receiptPrefix ?? ''}${config.nextReceiptNo ?? ''}` : ''
 
   return (
     <div>
@@ -234,6 +280,12 @@ export default function Sales() {
                   </td>
                   <td className="px-4 py-4 text-slate-400">{sale.createdAtUtc}</td>
                   <td className="px-4 py-4 text-right">
+                    <button
+                      onClick={() => openDetails(sale.id)}
+                      className="mr-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    >
+                      Details
+                    </button>
                     {sale.status !== 'Refunded' ? (
                       <button
                         onClick={() => handleRefund(sale.id)}
@@ -287,6 +339,9 @@ export default function Sales() {
                     onChange={(event) => setForm({ ...form, receiptNumber: event.target.value })}
                     className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                   />
+                  {suggestedReceipt && !form.receiptNumber ? (
+                    <p className="mt-1 text-xs text-slate-400">Auto: {suggestedReceipt}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -431,6 +486,106 @@ export default function Sales() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {detailsOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
+          <div className="w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display text-xl text-slate-900">Sale details</h3>
+                <p className="mt-1 text-sm text-slate-500">Items and payments for this ticket.</p>
+              </div>
+              <button onClick={closeDetails} className="text-sm text-slate-500 hover:text-slate-900">
+                Close
+              </button>
+            </div>
+
+            {detailsLoading ? (
+              <div className="mt-6 text-sm text-slate-500">Loading details...</div>
+            ) : details ? (
+              <div className="mt-6 space-y-6">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Items</h4>
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Product</th>
+                          <th className="px-4 py-3">Qty</th>
+                          <th className="px-4 py-3">Price</th>
+                          <th className="px-4 py-3">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {details.items.length === 0 ? (
+                          <tr>
+                            <td className="px-4 py-4 text-sm text-slate-500" colSpan={4}>
+                              No items.
+                            </td>
+                          </tr>
+                        ) : (
+                          details.items.map((item) => {
+                            const product = products.find((p) => p.id === item.productId)
+                            return (
+                              <tr key={item.id}>
+                                <td className="px-4 py-4 text-slate-900">
+                                  {product?.name ?? `Product #${item.productId}`}
+                                </td>
+                                <td className="px-4 py-4 text-slate-600">{item.quantity}</td>
+                                <td className="px-4 py-4 text-slate-600">${item.unitPriceUsd}</td>
+                                <td className="px-4 py-4 text-slate-600">${item.lineTotalUsd}</td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Payments</h4>
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Method</th>
+                          <th className="px-4 py-3">Amount</th>
+                          <th className="px-4 py-3">Paid at</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {details.payments.length === 0 ? (
+                          <tr>
+                            <td className="px-4 py-4 text-sm text-slate-500" colSpan={3}>
+                              No payments.
+                            </td>
+                          </tr>
+                        ) : (
+                          details.payments.map((payment) => {
+                            const method = methods.find((m) => m.id === payment.paymentMethodId)
+                            return (
+                              <tr key={payment.id}>
+                                <td className="px-4 py-4 text-slate-900">
+                                  {method?.name ?? `Method #${payment.paymentMethodId}`}
+                                </td>
+                                <td className="px-4 py-4 text-slate-600">${payment.amountUsd}</td>
+                                <td className="px-4 py-4 text-slate-500">{payment.paidAtUtc}</td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 text-sm text-slate-500">No details available.</div>
+            )}
           </div>
         </div>
       ) : null}

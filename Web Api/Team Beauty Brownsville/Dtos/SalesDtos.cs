@@ -25,6 +25,24 @@ public sealed record SalePaymentCreateRequest(
     string? Reference
 );
 
+public sealed record SaleItemResponse(
+    int Id,
+    int ProductId,
+    decimal Quantity,
+    decimal UnitPriceUsd,
+    decimal DiscountUsd,
+    decimal TaxUsd,
+    decimal LineTotalUsd
+);
+
+public sealed record SalePaymentResponse(
+    int Id,
+    int PaymentMethodId,
+    decimal AmountUsd,
+    DateTime PaidAtUtc,
+    string? Reference
+);
+
 public sealed record SaleResponse(
     int Id,
     int? MemberId,
@@ -37,4 +55,10 @@ public sealed record SaleResponse(
     string Status,
     string? ReceiptNumber,
     DateTime CreatedAtUtc
+);
+
+public sealed record SaleDetailsResponse(
+    SaleResponse Sale,
+    IReadOnlyList<SaleItemResponse> Items,
+    IReadOnlyList<SalePaymentResponse> Payments
 );

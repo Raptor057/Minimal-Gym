@@ -55,6 +55,42 @@ public sealed class CheckInRepository : ICheckInRepository
         return rows.ToList();
     }
 
+    public async Task<IReadOnlyList<CheckInWithMemberSummary>> GetTodayWithMemberSummary(DateTime dateUtc)
+    {
+        const string sql = """
+            SELECT
+                c.Id,
+                c.MemberId,
+                c.CheckedInAtUtc,
+                m.FullName,
+                m.PhotoBase64,
+                m.IsActive,
+                s.Status AS SubscriptionStatus,
+                s.EndDate AS SubscriptionEndDate
+            FROM dbo.CheckIns c
+            INNER JOIN dbo.Members m ON m.Id = c.MemberId
+            LEFT JOIN dbo.Subscriptions s ON s.MemberId = m.Id
+                AND s.Status = 'Active'
+                AND s.StartDate <= @DateUtc
+                AND s.EndDate >= @DateUtc
+            WHERE c.CheckedInAtUtc >= @StartUtc
+              AND c.CheckedInAtUtc < @EndUtc
+            ORDER BY c.Id DESC
+            """;
+
+        var startUtc = dateUtc.Date;
+        var endUtc = startUtc.AddDays(1);
+
+        using var connection = _connectionFactory.Create();
+        var rows = await connection.QueryAsync<CheckInWithMemberSummary>(sql, new
+        {
+            DateUtc = startUtc,
+            StartUtc = startUtc,
+            EndUtc = endUtc
+        });
+        return rows.ToList();
+    }
+
     public async Task<int> Create(CheckIn checkIn)
     {
         const string sql = """

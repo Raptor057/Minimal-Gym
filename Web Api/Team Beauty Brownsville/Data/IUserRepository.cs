@@ -7,6 +7,7 @@ public interface IUserRepository
     Task<User?> GetByUserName(string userName);
     Task<User?> GetById(int id);
     Task<IReadOnlyList<User>> GetAll();
+    Task<IReadOnlyList<User>> GetPublicUsers();
     Task<int> Create(User user);
     Task Update(
         int id,
@@ -26,4 +27,5 @@ public interface IUserRepository
     Task<RefreshToken?> GetRefreshToken(string token);
     Task RevokeRefreshToken(int refreshTokenId, DateTime revokedAtUtc, string? revokedByIp, string? replacedByToken);
     Task<int> GetCount();
+    Task<IReadOnlyList<string>> GetAllRoleNames();
 }

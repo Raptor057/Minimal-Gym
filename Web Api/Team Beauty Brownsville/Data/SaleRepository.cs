@@ -114,6 +114,20 @@ public sealed class SaleRepository : ISaleRepository
         return items.ToList();
     }
 
+    public async Task<IReadOnlyList<SalePayment>> GetPaymentsBySaleId(int saleId)
+    {
+        const string sql = """
+            SELECT Id, SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference
+            FROM dbo.SalePayments
+            WHERE SaleId = @SaleId
+            ORDER BY Id ASC
+            """;
+
+        using var connection = _connectionFactory.Create();
+        var rows = await connection.QueryAsync<SalePayment>(sql, new { SaleId = saleId });
+        return rows.ToList();
+    }
+
     public async Task UpdateStatus(int saleId, string status)
     {
         const string sql = "UPDATE dbo.Sales SET Status = @Status WHERE Id = @Id";

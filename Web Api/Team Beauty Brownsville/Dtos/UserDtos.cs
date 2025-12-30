@@ -34,3 +34,10 @@ public sealed record UserResponse(
     bool IsLocked,
     string[] Roles
 );
+
+public sealed record UserPublicResponse(
+    int Id,
+    string UserName,
+    string FullName,
+    string? PhotoBase64
+);
