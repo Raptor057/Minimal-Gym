@@ -65,7 +65,7 @@ export default function Topbar() {
               <MenuItem>
                 <button
                   type="button"
-                  onClick={() => navigate('/members')}
+                  onClick={() => navigate('/members/new')}
                   className="group flex w-full items-center px-4 py-2 text-sm text-slate-700 data-focus:bg-slate-100 data-focus:text-slate-900"
                 >
                   <UserPlusIcon
@@ -78,7 +78,7 @@ export default function Topbar() {
               <MenuItem>
                 <button
                   type="button"
-                  onClick={() => navigate('/sales')}
+                  onClick={() => navigate('/sales?new=1')}
                   className="group flex w-full items-center px-4 py-2 text-sm text-slate-700 data-focus:bg-slate-100 data-focus:text-slate-900"
                 >
                   <ReceiptPercentIcon
@@ -91,7 +91,7 @@ export default function Topbar() {
               <MenuItem>
                 <button
                   type="button"
-                  onClick={() => navigate('/payments')}
+                  onClick={() => navigate('/payments/new')}
                   className="group flex w-full items-center px-4 py-2 text-sm text-slate-700 data-focus:bg-slate-100 data-focus:text-slate-900"
                 >
                   <CreditCardIcon
@@ -106,7 +106,7 @@ export default function Topbar() {
               <MenuItem>
                 <button
                   type="button"
-                  onClick={() => navigate('/expenses')}
+                  onClick={() => navigate('/expenses/new')}
                   className="group flex w-full items-center px-4 py-2 text-sm text-slate-700 data-focus:bg-slate-100 data-focus:text-slate-900"
                 >
                   <CurrencyDollarIcon
@@ -119,7 +119,7 @@ export default function Topbar() {
               <MenuItem>
                 <button
                   type="button"
-                  onClick={() => navigate('/cash')}
+                  onClick={() => navigate('/cash?new=1')}
                   className="group flex w-full items-center px-4 py-2 text-sm text-slate-700 data-focus:bg-slate-100 data-focus:text-slate-900"
                 >
                   <PlusCircleIcon

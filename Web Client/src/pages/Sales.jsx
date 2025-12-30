@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ChevronDownIcon } from '@heroicons/react/16/solid'
+import { CheckIcon, XMarkIcon } from '@heroicons/react/20/solid'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
@@ -17,7 +20,7 @@ export default function Sales() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [details, setDetails] = useState(null)
-  const [items, setItems] = useState([emptyItem])
+  const [items, setItems] = useState([])
   const [form, setForm] = useState({
     memberId: '',
     receiptNumber: '',
@@ -26,6 +29,8 @@ export default function Sales() {
     paymentReference: '',
   })
   const [saving, setSaving] = useState(false)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const loadSales = async () => {
     setLoading(true)
@@ -61,6 +66,14 @@ export default function Sales() {
     loadFormData()
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('new') === '1') {
+      openCreate()
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location.pathname, location.search, navigate])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return sales
@@ -75,22 +88,50 @@ export default function Sales() {
       paymentAmountUsd: '',
       paymentReference: '',
     })
-    setItems([emptyItem])
+    setItems([])
     setModalOpen(true)
   }
 
   const closeModal = () => {
     setModalOpen(false)
+    const params = new URLSearchParams(location.search)
+    if (params.has('new')) {
+      params.delete('new')
+      const next = params.toString()
+      navigate(next ? `${location.pathname}?${next}` : location.pathname, { replace: true })
+    }
   }
 
-  const updateItem = (index, patch) => {
-    setItems((prev) => prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item)))
+  const getItemQuantity = (productId) => {
+    const item = items.find((entry) => Number(entry.productId) === Number(productId))
+    return item ? Number(item.quantity || 0) : 0
   }
 
-  const addItem = () => setItems((prev) => [...prev, emptyItem])
+  const setItemQuantity = (product, nextQuantity) => {
+    const normalized = Math.max(0, Number(nextQuantity || 0))
+    setItems((prev) => {
+      const index = prev.findIndex((entry) => Number(entry.productId) === Number(product.id))
+      if (normalized === 0) {
+        return index >= 0 ? prev.filter((_, idx) => idx !== index) : prev
+      }
+      const nextItem = {
+        ...emptyItem,
+        productId: String(product.id),
+        quantity: String(normalized),
+        unitPriceUsd: String(product.salePriceUsd ?? ''),
+      }
+      if (index >= 0) {
+        return prev.map((entry, idx) =>
+          idx === index ? { ...entry, quantity: String(normalized), unitPriceUsd: entry.unitPriceUsd || nextItem.unitPriceUsd } : entry
+        )
+      }
+      return [...prev, nextItem]
+    })
+  }
 
-  const removeItem = (index) => {
-    setItems((prev) => prev.filter((_, idx) => idx !== index))
+  const adjustItemQuantity = (product, delta) => {
+    const current = getItemQuantity(product.id)
+    setItemQuantity(product, current + delta)
   }
 
   const taxRate = Number(config?.taxRate ?? 0)
@@ -213,6 +254,15 @@ export default function Sales() {
 
   const suggestedReceipt = config ? `${config.receiptPrefix ?? ''}${config.nextReceiptNo ?? ''}` : ''
 
+  const formatPrice = (value) => {
+    if (value === null || value === undefined || value === '') return '$0.00'
+    const numeric = Number(value)
+    if (Number.isNaN(numeric)) return '$0.00'
+    return `$${numeric.toFixed(2)}`
+  }
+
+  const quantityOptions = Array.from({ length: 10 }, (_, index) => index + 1)
+
   return (
     <div>
       <PageHeader
@@ -303,19 +353,18 @@ export default function Sales() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
-          <div className="w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-display text-xl text-slate-900">New sale</h3>
-                <p className="mt-1 text-sm text-slate-500">Create a ticket with items.</p>
-              </div>
-              <button onClick={closeModal} className="text-sm text-slate-500 hover:text-slate-900">
-                Close
-              </button>
+        <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="font-display text-xl text-slate-900">New sale</h3>
+              <p className="mt-1 text-sm text-slate-500">Create a ticket with items.</p>
             </div>
+            <button onClick={closeModal} className="text-sm text-slate-500 hover:text-slate-900">
+              Close
+            </button>
+          </div>
 
-            <form onSubmit={handleSave} className="mt-6 space-y-6">
+          <form onSubmit={handleSave} className="mt-6 space-y-6">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Member</label>
@@ -345,86 +394,206 @@ export default function Sales() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200">
-                <div className="grid grid-cols-12 gap-2 bg-slate-50 px-4 py-3 text-xs uppercase tracking-[0.2em] text-slate-500">
-                  <div className="col-span-4">Product</div>
-                  <div className="col-span-2">Qty</div>
-                  <div className="col-span-2">Price</div>
-                  <div className="col-span-2">Discount</div>
-                  <div className="col-span-1">Tax</div>
-                  <div className="col-span-1"></div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Products</p>
+                    <p className="mt-1 text-sm text-slate-500">Tap to add items to the sale.</p>
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {products.filter((product) => product.isActive).length} items
+                  </div>
                 </div>
-                <div className="divide-y divide-slate-100">
-                  {items.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm">
-                      <div className="col-span-4">
-                        <select
-                          value={item.productId}
-                          onChange={(event) => updateItem(index, { productId: event.target.value })}
-                          className="w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
-                        >
-                          <option value="">Select product</option>
-                          {products.filter((p) => p.isActive).map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={item.quantity}
-                          onChange={(event) => updateItem(index, { quantity: event.target.value })}
-                          className="w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={item.unitPriceUsd}
-                          onChange={(event) => updateItem(index, { unitPriceUsd: event.target.value })}
-                          className="w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={item.discountUsd}
-                          onChange={(event) => updateItem(index, { discountUsd: event.target.value })}
-                          className="w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={item.taxUsd}
-                          onChange={(event) => updateItem(index, { taxUsd: event.target.value })}
-                          className="w-full rounded-md border border-slate-200 px-2 py-2 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-1 flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          className="text-xs font-semibold text-rose-500 hover:text-rose-700"
-                        >
-                          Remove
-                        </button>
-                      </div>
+
+                {products.filter((product) => product.isActive).length === 0 ? (
+                  <div className="mt-6 text-sm text-slate-500">No active products yet.</div>
+                ) : (
+                  <div className="mt-6 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8">
+                    {products
+                      .filter((product) => product.isActive)
+                      .map((product) => {
+                        const quantity = getItemQuantity(product.id)
+                        return (
+                          <div key={product.id}>
+                            <div className="relative">
+                              <div className="relative h-64 w-full overflow-hidden rounded-lg bg-slate-100">
+                                {product.photoBase64 ? (
+                                  <img alt={product.name} src={product.photoBase64} className="size-full object-cover" />
+                                ) : (
+                                  <div className="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                    No photo
+                                  </div>
+                                )}
+                              </div>
+                              <div className="relative mt-4">
+                                <h3 className="text-sm font-medium text-slate-900">{product.name}</h3>
+                                <p className="mt-1 text-sm text-slate-500">{product.category || 'Uncategorized'}</p>
+                              </div>
+                              <div className="absolute inset-x-0 top-0 flex h-64 items-end justify-end overflow-hidden rounded-lg p-4">
+                                <div
+                                  aria-hidden="true"
+                                  className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black opacity-60"
+                                />
+                                <p className="relative text-lg font-semibold text-white">
+                                  {formatPrice(product.salePriceUsd)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-6 flex items-center justify-between">
+                              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                Qty
+                              </span>
+                              <div className="inline-flex items-center rounded-full border border-slate-200 bg-white">
+                                <button
+                                  type="button"
+                                  onClick={() => adjustItemQuantity(product, -1)}
+                                  disabled={quantity <= 0}
+                                  className="h-9 w-9 text-lg font-semibold text-slate-600 disabled:opacity-40"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center text-sm font-semibold text-slate-900">
+                                  {quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => adjustItemQuantity(product, 1)}
+                                  className="h-9 w-9 text-lg font-semibold text-slate-600"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+
+                <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-900">Shopping cart</h4>
+                      <p className="mt-1 text-sm text-slate-500">Items ready for checkout.</p>
                     </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between px-4 py-3 text-sm">
-                  <button type="button" onClick={addItem} className="text-xs font-semibold text-indigo-600">
-                    + Add item
-                  </button>
-                  <div className="text-sm text-slate-600">
-                    Total: <span className="font-semibold text-slate-900">${totals.total.toFixed(2)}</span>
+                    <div className="text-sm text-slate-500">{items.length} items</div>
+                  </div>
+
+                  <div className="mt-6 lg:grid lg:grid-cols-12 lg:items-start lg:gap-x-8">
+                    <section aria-label="Cart items" className="lg:col-span-7">
+                      {items.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                          No items selected yet.
+                        </div>
+                      ) : (
+                        <ul role="list" className="divide-y divide-slate-200 border-y border-slate-200">
+                          {items.map((item) => {
+                            const product = products.find((entry) => entry.id === Number(item.productId))
+                            const qty = Number(item.quantity || 0)
+                            const price = Number(item.unitPriceUsd || 0)
+                            const discount = Number(item.discountUsd || 0)
+                            const tax = getLineTax(item)
+                            const lineTotal = qty * price - discount + tax
+                            return (
+                              <li key={item.productId} className="flex py-6">
+                                <div className="shrink-0">
+                                  {product?.photoBase64 ? (
+                                    <img
+                                      alt={product?.name ?? 'Product'}
+                                      src={product.photoBase64}
+                                      className="h-20 w-20 rounded-md object-cover sm:h-28 sm:w-28"
+                                    />
+                                  ) : (
+                                    <div className="flex h-20 w-20 items-center justify-center rounded-md bg-slate-100 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:h-28 sm:w-28">
+                                      No photo
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="ml-4 flex flex-1 flex-col justify-between sm:ml-6">
+                                  <div className="relative pr-10 sm:grid sm:grid-cols-2 sm:gap-x-6 sm:pr-0">
+                                    <div>
+                                      <div className="flex justify-between">
+                                        <h3 className="text-sm font-medium text-slate-900">
+                                          {product?.name ?? `Product #${item.productId}`}
+                                        </h3>
+                                      </div>
+                                      <div className="mt-1 flex text-sm text-slate-500">
+                                        <p>{product?.category || 'Uncategorized'}</p>
+                                      </div>
+                                      <p className="mt-1 text-sm font-semibold text-slate-900">{formatPrice(price)}</p>
+                                    </div>
+
+                                    <div className="mt-4 sm:mt-0 sm:pr-9">
+                                      <div className="grid w-full max-w-16 grid-cols-1">
+                                        <select
+                                          value={qty}
+                                          onChange={(event) =>
+                                            product ? setItemQuantity(product, Number(event.target.value)) : null
+                                          }
+                                          className="col-start-1 row-start-1 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
+                                        >
+                                          {quantityOptions.map((option) => (
+                                            <option key={option} value={option}>
+                                              {option}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <ChevronDownIcon
+                                          aria-hidden="true"
+                                          className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end text-slate-500 sm:size-4"
+                                        />
+                                      </div>
+
+                                      <div className="absolute right-0 top-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => (product ? setItemQuantity(product, 0) : null)}
+                                          className="-m-2 inline-flex p-2 text-slate-400 hover:text-slate-500"
+                                        >
+                                          <span className="sr-only">Remove</span>
+                                          <XMarkIcon aria-hidden="true" className="size-5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+                                    <span className="flex items-center gap-2">
+                                      <CheckIcon aria-hidden="true" className="size-5 text-emerald-500" />
+                                      In stock
+                                    </span>
+                                    <span className="text-sm font-semibold text-slate-900">{formatPrice(lineTotal)}</span>
+                                  </div>
+                                </div>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </section>
+
+                    <section aria-label="Order summary" className="mt-10 rounded-lg bg-slate-50 px-4 py-6 sm:p-6 lg:col-span-5 lg:mt-0 lg:p-8">
+                      <h4 className="text-base font-semibold text-slate-900">Order summary</h4>
+                      <dl className="mt-6 space-y-4 text-sm">
+                        <div className="flex items-center justify-between">
+                          <dt className="text-slate-600">Subtotal</dt>
+                          <dd className="font-medium text-slate-900">{formatPrice(totals.subtotal)}</dd>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+                          <dt className="text-slate-600">Discount</dt>
+                          <dd className="font-medium text-slate-900">{formatPrice(totals.discount)}</dd>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+                          <dt className="text-slate-600">Tax</dt>
+                          <dd className="font-medium text-slate-900">{formatPrice(totals.tax)}</dd>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+                          <dt className="text-base font-semibold text-slate-900">Order total</dt>
+                          <dd className="text-base font-semibold text-slate-900">{formatPrice(totals.total)}</dd>
+                        </div>
+                      </dl>
+                    </section>
                   </div>
                 </div>
               </div>
@@ -486,7 +655,6 @@ export default function Sales() {
                 </button>
               </div>
             </form>
-          </div>
         </div>
       ) : null}
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 import EmptyPanel from '../ui/EmptyPanel.jsx'
@@ -26,6 +27,8 @@ export default function Cash() {
   const [movementForm, setMovementForm] = useState(emptyMovement)
   const [closeForm, setCloseForm] = useState(emptyClose)
   const [saving, setSaving] = useState(false)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const loadCurrent = async () => {
     try {
@@ -64,12 +67,28 @@ export default function Cash() {
     Promise.all([loadCurrent(), loadClosures(), loadMovements()]).finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('new') === '1') {
+      openCash()
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location.pathname, location.search, navigate])
+
   const openCash = () => {
     setOpenForm(emptyOpen)
     setOpenModal(true)
   }
 
-  const closeCashModal = () => setOpenModal(false)
+  const closeCashModal = () => {
+    setOpenModal(false)
+    const params = new URLSearchParams(location.search)
+    if (params.has('new')) {
+      params.delete('new')
+      const next = params.toString()
+      navigate(next ? `${location.pathname}?${next}` : location.pathname, { replace: true })
+    }
+  }
   const closeMovementModal = () => setMovementModal(false)
   const closeCloseModal = () => setCloseModal(false)
 
@@ -85,7 +104,7 @@ export default function Cash() {
       }
       const { data } = await api.post('/cash/open', { openingAmountUsd: amount })
       setCurrent(data)
-      setOpenModal(false)
+      closeCashModal()
       setOpenForm(emptyOpen)
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to open cash session.')

@@ -9,6 +9,7 @@ public sealed class Product
     public decimal SalePriceUsd { get; set; }
     public decimal CostUsd { get; set; }
     public string? Category { get; set; }
+    public string? PhotoBase64 { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }

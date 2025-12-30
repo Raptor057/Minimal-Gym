@@ -7,6 +7,7 @@ public sealed record ProductCreateRequest(
     decimal CostUsd,
     string? Barcode,
     string? Category,
+    string? PhotoBase64,
     bool IsActive = true
 );
 
@@ -17,6 +18,7 @@ public sealed record ProductUpdateRequest(
     decimal? CostUsd,
     string? Barcode,
     string? Category,
+    string? PhotoBase64,
     bool? IsActive
 );
 
@@ -28,5 +30,6 @@ public sealed record ProductResponse(
     decimal SalePriceUsd,
     decimal CostUsd,
     string? Category,
+    string? PhotoBase64,
     bool IsActive
 );

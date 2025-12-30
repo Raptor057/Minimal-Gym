@@ -15,7 +15,7 @@ public sealed class ProductRepository : IProductRepository
     public async Task<IReadOnlyList<Product>> GetAll()
     {
         const string sql = """
-            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, IsActive, CreatedAtUtc, UpdatedAtUtc
+            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc, UpdatedAtUtc
             FROM dbo.Products
             ORDER BY Id DESC
             """;
@@ -28,7 +28,7 @@ public sealed class ProductRepository : IProductRepository
     public async Task<Product?> GetById(int id)
     {
         const string sql = """
-            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, IsActive, CreatedAtUtc, UpdatedAtUtc
+            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc, UpdatedAtUtc
             FROM dbo.Products
             WHERE Id = @Id
             """;
@@ -37,12 +37,24 @@ public sealed class ProductRepository : IProductRepository
         return await connection.QuerySingleOrDefaultAsync<Product>(sql, new { Id = id });
     }
 
+    public async Task<Product?> GetBySku(string sku)
+    {
+        const string sql = """
+            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc, UpdatedAtUtc
+            FROM dbo.Products
+            WHERE Sku = @Sku
+            """;
+
+        using var connection = _connectionFactory.Create();
+        return await connection.QuerySingleOrDefaultAsync<Product>(sql, new { Sku = sku });
+    }
+
     public async Task<int> Create(Product product)
     {
         const string sql = """
-            INSERT INTO dbo.Products (Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, IsActive, CreatedAtUtc)
+            INSERT INTO dbo.Products (Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc)
             OUTPUT INSERTED.Id
-            VALUES (@Sku, @Barcode, @Name, @SalePriceUsd, @CostUsd, @Category, @IsActive, @CreatedAtUtc)
+            VALUES (@Sku, @Barcode, @Name, @SalePriceUsd, @CostUsd, @Category, @PhotoBase64, @IsActive, @CreatedAtUtc)
             """;
 
         using var connection = _connectionFactory.Create();
@@ -57,6 +69,7 @@ public sealed class ProductRepository : IProductRepository
         decimal? salePriceUsd,
         decimal? costUsd,
         string? category,
+        string? photoBase64,
         bool? isActive,
         DateTime updatedAtUtc)
     {
@@ -68,6 +81,7 @@ public sealed class ProductRepository : IProductRepository
                 SalePriceUsd = COALESCE(@SalePriceUsd, SalePriceUsd),
                 CostUsd = COALESCE(@CostUsd, CostUsd),
                 Category = COALESCE(@Category, Category),
+                PhotoBase64 = COALESCE(@PhotoBase64, PhotoBase64),
                 IsActive = COALESCE(@IsActive, IsActive),
                 UpdatedAtUtc = @UpdatedAtUtc
             WHERE Id = @Id
@@ -83,6 +97,7 @@ public sealed class ProductRepository : IProductRepository
             SalePriceUsd = salePriceUsd,
             CostUsd = costUsd,
             Category = category,
+            PhotoBase64 = photoBase64,
             IsActive = isActive,
             UpdatedAtUtc = updatedAtUtc
         });

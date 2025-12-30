@@ -43,6 +43,13 @@ public sealed class ProductsController : ControllerBase
             return BadRequest("Sku and Name are required.");
         }
 
+        var normalizedSku = request.Sku.Trim();
+        var existingSku = await _products.GetBySku(normalizedSku);
+        if (existingSku is not null)
+        {
+            return BadRequest("Sku already exists.");
+        }
+
         if (request.SalePriceUsd <= 0 || request.CostUsd < 0)
         {
             return BadRequest("SalePriceUsd must be greater than zero and CostUsd cannot be negative.");
@@ -50,12 +57,13 @@ public sealed class ProductsController : ControllerBase
 
         var product = new Product
         {
-            Sku = request.Sku.Trim(),
+            Sku = normalizedSku,
             Barcode = request.Barcode?.Trim(),
             Name = request.Name.Trim(),
             SalePriceUsd = request.SalePriceUsd,
             CostUsd = request.CostUsd,
             Category = request.Category?.Trim(),
+            PhotoBase64 = string.IsNullOrWhiteSpace(request.PhotoBase64) ? null : request.PhotoBase64.Trim(),
             IsActive = request.IsActive,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -73,6 +81,16 @@ public sealed class ProductsController : ControllerBase
         if (existing is null)
         {
             return NotFound();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Sku))
+        {
+            var normalizedSku = request.Sku.Trim();
+            var skuMatch = await _products.GetBySku(normalizedSku);
+            if (skuMatch is not null && skuMatch.Id != id)
+            {
+                return BadRequest("Sku already exists.");
+            }
         }
 
         if (request.SalePriceUsd is not null && request.SalePriceUsd <= 0)
@@ -93,6 +111,7 @@ public sealed class ProductsController : ControllerBase
             request.SalePriceUsd,
             request.CostUsd,
             request.Category?.Trim(),
+            string.IsNullOrWhiteSpace(request.PhotoBase64) ? null : request.PhotoBase64.Trim(),
             request.IsActive,
             DateTime.UtcNow);
 
@@ -131,6 +150,7 @@ public sealed class ProductsController : ControllerBase
             product.SalePriceUsd,
             product.CostUsd,
             product.Category,
+            product.PhotoBase64,
             product.IsActive);
     }
 }

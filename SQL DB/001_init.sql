@@ -243,6 +243,7 @@ BEGIN
     SalePriceUsd       DECIMAL(19,4) NOT NULL,
     CostUsd            DECIMAL(19,4) NOT NULL,
     Category           NVARCHAR(80) NULL,
+    PhotoBase64        NVARCHAR(MAX) NULL,
     IsActive           BIT NOT NULL CONSTRAINT DF_Products_IsActive DEFAULT (1),
     CreatedAtUtc       DATETIME2(0) NOT NULL CONSTRAINT DF_Products_CreatedAtUtc DEFAULT (SYSUTCDATETIME()),
     UpdatedAtUtc       DATETIME2(0) NULL

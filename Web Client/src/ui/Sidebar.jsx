@@ -5,6 +5,19 @@ import { adminNavigation, operationsNavigation, primaryNavigation } from '../dat
 const baseLink =
   'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition'
 
+const getUserNameFromToken = () => {
+  const token = localStorage.getItem('access_token')
+  if (!token) return null
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  try {
+    const payload = JSON.parse(atob(parts[1]))
+    return payload.name || payload.unique_name || null
+  } catch {
+    return null
+  }
+}
+
 function SidebarSection({ title, items }) {
   return (
     <div>
@@ -32,10 +45,17 @@ function SidebarSection({ title, items }) {
 }
 
 export default function Sidebar() {
+  const userName = getUserNameFromToken()
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
       <div className="flex grow flex-col gap-10 overflow-y-auto border-r border-slate-200/60 bg-white/80 px-6 py-10 backdrop-blur">
         <Logo />
+        {userName ? (
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50 px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Bienvenido</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">{userName}</div>
+          </div>
+        ) : null}
         <SidebarSection title="Core" items={primaryNavigation} />
         <SidebarSection title="Operations" items={operationsNavigation} />
         <SidebarSection title="Admin" items={adminNavigation} />

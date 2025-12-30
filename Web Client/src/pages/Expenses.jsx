@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
@@ -9,14 +10,7 @@ export default function Expenses() {
   const [pageSize] = useState(8)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({
-    description: '',
-    amountUsd: '',
-    expenseDateUtc: '',
-    notes: '',
-  })
-  const [saving, setSaving] = useState(false)
+  const navigate = useNavigate()
 
   const fetchExpenses = async () => {
     setLoading(true)
@@ -46,46 +40,6 @@ export default function Expenses() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  const openCreate = () => {
-    setForm({ description: '', amountUsd: '', expenseDateUtc: '', notes: '' })
-    setModalOpen(true)
-  }
-
-  const closeModal = () => {
-    setModalOpen(false)
-  }
-
-  const handleSave = async (event) => {
-    event.preventDefault()
-    setSaving(true)
-    setError('')
-    try {
-      if (!form.description.trim()) {
-        setError('Description is required.')
-        return
-      }
-      if (Number(form.amountUsd) <= 0) {
-        setError('Amount must be greater than zero.')
-        return
-      }
-
-      const payload = {
-        description: form.description.trim(),
-        amountUsd: Number(form.amountUsd),
-        expenseDateUtc: form.expenseDateUtc ? new Date(form.expenseDateUtc).toISOString() : null,
-        notes: form.notes?.trim() || null,
-      }
-
-      await api.post('/expenses', payload)
-      await fetchExpenses()
-      closeModal()
-    } catch (err) {
-      setError(err?.response?.data ?? 'Unable to create expense.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
     <div>
       <PageHeader
@@ -93,7 +47,10 @@ export default function Expenses() {
         title="Operational expenses"
         description="Track utilities, maintenance, and supplier invoices."
         actions={
-          <button onClick={openCreate} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+          <button
+            onClick={() => navigate('/expenses/new')}
+            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+          >
             Add expense
           </button>
         }
@@ -171,77 +128,6 @@ export default function Expenses() {
           Next
         </button>
       </div>
-
-      {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
-          <div className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-display text-xl text-slate-900">Add expense</h3>
-                <p className="mt-1 text-sm text-slate-500">Record a new expense.</p>
-              </div>
-              <button onClick={closeModal} className="text-sm text-slate-500 hover:text-slate-900">
-                Close
-              </button>
-            </div>
-            <form onSubmit={handleSave} className="mt-6 space-y-4">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Description</label>
-                <input
-                  value={form.description}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
-                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.amountUsd}
-                    onChange={(event) => setForm({ ...form, amountUsd: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Expense date</label>
-                  <input
-                    type="datetime-local"
-                    value={form.expenseDateUtc}
-                    onChange={(event) => setForm({ ...form, expenseDateUtc: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Notes</label>
-                <input
-                  value={form.notes}
-                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {saving ? 'Saving...' : 'Save expense'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

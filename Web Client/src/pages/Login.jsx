@@ -32,41 +32,33 @@ export default function Login() {
   const [selectedUser, setSelectedUser] = useState(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    let isMounted = true
-    api
-      .get('/bootstrap/status')
-      .then((response) => {
-        if (!isMounted) return
-        setCanCreateAdmin(!response.data?.hasUsers)
-        if (response.data?.hasUsers) {
-          setView('login')
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setCanCreateAdmin(false)
-        }
-      })
-    return () => {
-      isMounted = false
+  const fetchBootstrapStatus = async () => {
+    try {
+      const response = await api.get('/bootstrap/status')
+      setCanCreateAdmin(!response.data?.hasUsers)
+      if (response.data?.hasUsers) {
+        setView('login')
+      }
+    } catch {
+      setCanCreateAdmin(false)
     }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get('/public/users')
+      setUsers(Array.isArray(response.data) ? response.data : [])
+    } catch {
+      setUsers([])
+    }
+  }
+
+  useEffect(() => {
+    fetchBootstrapStatus()
   }, [])
 
   useEffect(() => {
-    let isMounted = true
-    api
-      .get('/public/users')
-      .then((response) => {
-        if (!isMounted) return
-        setUsers(Array.isArray(response.data) ? response.data : [])
-      })
-      .catch(() => {
-        if (isMounted) setUsers([])
-      })
-    return () => {
-      isMounted = false
-    }
+    fetchUsers()
   }, [])
 
   const filteredUsers = useMemo(() => {
@@ -485,6 +477,11 @@ export default function Login() {
                 onClick={() => {
                   setModalOpen(false)
                   setView('login')
+                  fetchUsers()
+                  fetchBootstrapStatus()
+                  setSelectedUser(null)
+                  setQuery('')
+                  setLoginForm(initialLogin)
                 }}
                 className="inline-flex w-full justify-center rounded-md bg-[#87155f] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#9a1a6c]"
               >
