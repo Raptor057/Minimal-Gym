@@ -64,7 +64,15 @@ export default function Subscriptions() {
     return subscriptions.filter((sub) => sub.status?.toLowerCase().includes(term))
   }, [search, subscriptions])
 
+  const activeSubscription = subscriptions.find(
+    (sub) => String(sub.status ?? '').toLowerCase() === 'active'
+  )
+
   const openCreate = () => {
+    if (activeSubscription) {
+      setError('This member already has an active subscription.')
+      return
+    }
     setForm({ ...emptyForm, memberId: selectedMemberId || '' })
     setModalOpen(true)
   }
@@ -139,7 +147,8 @@ export default function Subscriptions() {
         actions={
           <button
             onClick={openCreate}
-            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            disabled={Boolean(activeSubscription)}
           >
             New subscription
           </button>
@@ -170,6 +179,12 @@ export default function Subscriptions() {
       {error ? (
         <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {String(error)}
+        </div>
+      ) : null}
+
+      {activeSubscription ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          This member already has an active subscription. Pause or expire it before creating another.
         </div>
       ) : null}
 

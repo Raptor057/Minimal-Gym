@@ -50,6 +50,12 @@ public sealed class SubscriptionsController : ControllerBase
             return NotFound("Member not found.");
         }
 
+        var existingSubs = await _subscriptions.GetByMemberId(memberId);
+        if (HasActiveSubscription(existingSubs))
+        {
+            return BadRequest("Member already has an active subscription.");
+        }
+
         var plan = await _plans.GetById(request.PlanId);
         if (plan is null || !plan.IsActive)
         {
@@ -91,6 +97,15 @@ public sealed class SubscriptionsController : ControllerBase
             return BadRequest("Invalid status.");
         }
 
+        if (string.Equals(request.Status, "Active", StringComparison.OrdinalIgnoreCase))
+        {
+            var subs = await _subscriptions.GetByMemberId(existing.MemberId);
+            if (HasActiveSubscription(subs, existing.Id))
+            {
+                return BadRequest("Member already has another active subscription.");
+            }
+        }
+
         await _subscriptions.Update(
             id,
             request.StartDate?.Date,
@@ -117,6 +132,12 @@ public sealed class SubscriptionsController : ControllerBase
         if (plan is null)
         {
             return BadRequest("Plan not found.");
+        }
+
+        var subs = await _subscriptions.GetByMemberId(existing.MemberId);
+        if (HasActiveSubscription(subs, existing.Id))
+        {
+            return BadRequest("Member already has another active subscription.");
         }
 
         var startDate = (request.StartDate ?? DateTime.UtcNow).Date;
@@ -188,6 +209,12 @@ public sealed class SubscriptionsController : ControllerBase
             return BadRequest("Subscription must be Paused to resume.");
         }
 
+        var subs = await _subscriptions.GetByMemberId(existing.MemberId);
+        if (HasActiveSubscription(subs, existing.Id))
+        {
+            return BadRequest("Member already has another active subscription.");
+        }
+
         if (existing.PausedAtUtc is null)
         {
             return BadRequest("PausedAtUtc is missing.");
@@ -204,5 +231,12 @@ public sealed class SubscriptionsController : ControllerBase
         await _subscriptions.Resume(id, newEndDate, now);
         await _audit.LogAsync("Resume", "Subscription", id.ToString(), GetUserId(), new { NewEndDate = newEndDate });
         return NoContent();
+    }
+
+    private static bool HasActiveSubscription(IEnumerable<Subscription> subscriptions, int? excludeId = null)
+    {
+        return subscriptions.Any(sub =>
+            string.Equals(sub.Status, "Active", StringComparison.OrdinalIgnoreCase) &&
+            (!excludeId.HasValue || sub.Id != excludeId.Value));
     }
 }
