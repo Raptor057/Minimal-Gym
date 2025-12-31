@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
 import {
   ChevronDownIcon,
+  CheckBadgeIcon,
   CreditCardIcon,
   CurrencyDollarIcon,
   PlusCircleIcon,
@@ -55,6 +56,14 @@ export default function Topbar() {
         <h1 className="font-display text-2xl text-slate-900">{title}</h1>
       </div>
       <div className="hidden items-center gap-3 md:flex">
+        <button
+          type="button"
+          onClick={() => window.open('/checkin', '_blank', 'noopener,noreferrer')}
+          className="inline-flex items-center gap-x-2 rounded-full border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+        >
+          <CheckBadgeIcon aria-hidden="true" className="size-4 text-indigo-500" />
+          Check-in
+        </button>
         <Menu as="div" className="relative inline-block text-left">
           <MenuButton className="inline-flex items-center gap-x-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-500/30">
             New action

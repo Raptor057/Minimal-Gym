@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckBadgeIcon, ClockIcon } from '@heroicons/react/20/solid'
 import api from '../api/axios.js'
+import { formatMemberId } from '../utils/formatMemberId.js'
 
 export default function PublicCheckIn() {
   const [memberId, setMemberId] = useState('')
@@ -250,7 +251,9 @@ export default function PublicCheckIn() {
         </div>
 
         {memberId ? (
-          <div className="mt-3 text-xs text-slate-400">Last scan: {memberId}</div>
+          <div className="mt-3 text-xs text-slate-400">
+            Last scan: {formatMemberId(member?.memberNumber ?? memberId)}
+          </div>
         ) : null}
 
         {scanning ? (
@@ -285,6 +288,9 @@ export default function PublicCheckIn() {
                   </div>
                   <div>
                     <div className="text-lg font-semibold">{member.fullName}</div>
+                    <div className="text-xs text-slate-400">
+                      ID: {formatMemberId(member.memberNumber ?? member.memberId) || '--'}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 space-y-2 text-sm text-slate-300">

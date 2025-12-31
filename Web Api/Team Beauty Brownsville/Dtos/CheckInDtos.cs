@@ -5,6 +5,7 @@ public sealed record CheckInCreateRequest(int MemberId, DateTime? CheckedInAtUtc
 public sealed record CheckInResponse(
     int Id,
     int MemberId,
+    string MemberNumber,
     DateTime CheckedInAtUtc,
     int? CreatedByUserId,
     string? MemberPhotoBase64
@@ -12,6 +13,7 @@ public sealed record CheckInResponse(
 
 public sealed record CheckInScanResponse(
     int MemberId,
+    string MemberNumber,
     string FullName,
     string? Email,
     string? Phone,

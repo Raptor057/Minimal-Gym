@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Transition } from '@headlessui/react'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
+import { formatMemberId } from '../utils/formatMemberId.js'
 
 const baseURL = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -183,10 +184,11 @@ export default function Dashboard() {
 
         if (lastNotifiedId.current !== latest.id) {
           const member = members.find((item) => item.id === latest.memberId)
+          const memberCode = formatMemberId(member?.memberNumber ?? latest.memberId)
           showCheckInNotification({
             id: latest.id,
             memberId: latest.memberId,
-            name: member?.fullName ?? `Member #${latest.memberId}`,
+            name: member?.fullName ?? `Member #${memberCode}`,
             imageUrl: member?.photoBase64 ?? latest.memberPhotoBase64 ?? '',
             checkedInAtUtc: latest.checkedInAtUtc,
           })

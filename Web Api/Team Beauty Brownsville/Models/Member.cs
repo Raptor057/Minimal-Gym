@@ -3,6 +3,7 @@ namespace Team_Beauty_Brownsville.Models;
 public sealed class Member
 {
     public int Id { get; set; }
+    public string MemberNumber { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? Email { get; set; }

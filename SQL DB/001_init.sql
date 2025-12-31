@@ -118,6 +118,7 @@ IF OBJECT_ID(N'dbo.Members', N'U') IS NULL
 BEGIN
   CREATE TABLE dbo.Members (
     Id                 INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    MemberNumber       AS RIGHT(REPLICATE('0', 10) + CAST(Id AS VARCHAR(10)), 10) PERSISTED,
     FullName           NVARCHAR(150) NOT NULL,
     Phone              NVARCHAR(30) NULL,
     Email              NVARCHAR(150) NULL,
@@ -136,6 +137,12 @@ GO
 IF COL_LENGTH('dbo.Members', 'PhotoBase64') IS NULL
 BEGIN
   ALTER TABLE dbo.Members ADD PhotoBase64 NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Members', 'MemberNumber') IS NULL
+BEGIN
+  ALTER TABLE dbo.Members ADD MemberNumber AS RIGHT(REPLICATE('0', 10) + CAST(Id AS VARCHAR(10)), 10) PERSISTED;
 END
 GO
 
@@ -417,5 +424,78 @@ IF NOT EXISTS (SELECT 1 FROM dbo.Config)
 BEGIN
   INSERT INTO dbo.Config (CurrencyCode, TaxRate, ReceiptPrefix, NextReceiptNo)
   VALUES ('USD', 0, NULL, 1);
+END
+GO
+
+-- Indexes for common lookups and reports
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Members_IsDeleted_Id' AND object_id = OBJECT_ID(N'dbo.Members'))
+BEGIN
+  CREATE INDEX IX_Members_IsDeleted_Id ON dbo.Members (IsDeleted, Id DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CheckIns_MemberId_CheckedInAtUtc' AND object_id = OBJECT_ID(N'dbo.CheckIns'))
+BEGIN
+  CREATE INDEX IX_CheckIns_MemberId_CheckedInAtUtc ON dbo.CheckIns (MemberId, CheckedInAtUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CheckIns_CheckedInAtUtc' AND object_id = OBJECT_ID(N'dbo.CheckIns'))
+BEGIN
+  CREATE INDEX IX_CheckIns_CheckedInAtUtc ON dbo.CheckIns (CheckedInAtUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Subscriptions_MemberId_Status_Dates' AND object_id = OBJECT_ID(N'dbo.Subscriptions'))
+BEGIN
+  CREATE INDEX IX_Subscriptions_MemberId_Status_Dates ON dbo.Subscriptions (MemberId, Status, StartDate, EndDate);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Subscriptions_Status_EndDate' AND object_id = OBJECT_ID(N'dbo.Subscriptions'))
+BEGIN
+  CREATE INDEX IX_Subscriptions_Status_EndDate ON dbo.Subscriptions (Status, EndDate);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Payments_SubscriptionId_PaidAtUtc' AND object_id = OBJECT_ID(N'dbo.Payments'))
+BEGIN
+  CREATE INDEX IX_Payments_SubscriptionId_PaidAtUtc ON dbo.Payments (SubscriptionId, PaidAtUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Sales_MemberId_CreatedAtUtc' AND object_id = OBJECT_ID(N'dbo.Sales'))
+BEGIN
+  CREATE INDEX IX_Sales_MemberId_CreatedAtUtc ON dbo.Sales (MemberId, CreatedAtUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Sales_CashSessionId' AND object_id = OBJECT_ID(N'dbo.Sales'))
+BEGIN
+  CREATE INDEX IX_Sales_CashSessionId ON dbo.Sales (CashSessionId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CashSessions_Status_OpenedBy' AND object_id = OBJECT_ID(N'dbo.CashSessions'))
+BEGIN
+  CREATE INDEX IX_CashSessions_Status_OpenedBy ON dbo.CashSessions (Status, OpenedByUserId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CashMovements_SessionId_CreatedAtUtc' AND object_id = OBJECT_ID(N'dbo.CashMovements'))
+BEGIN
+  CREATE INDEX IX_CashMovements_SessionId_CreatedAtUtc ON dbo.CashMovements (CashSessionId, CreatedAtUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Expenses_ExpenseDateUtc' AND object_id = OBJECT_ID(N'dbo.Expenses'))
+BEGIN
+  CREATE INDEX IX_Expenses_ExpenseDateUtc ON dbo.Expenses (ExpenseDateUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AuditLog_CreatedAtUtc' AND object_id = OBJECT_ID(N'dbo.AuditLog'))
+BEGIN
+  CREATE INDEX IX_AuditLog_CreatedAtUtc ON dbo.AuditLog (CreatedAtUtc DESC);
 END
 GO

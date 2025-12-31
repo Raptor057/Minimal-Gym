@@ -44,7 +44,12 @@ public sealed class CheckInRepository : ICheckInRepository
     public async Task<IReadOnlyList<CheckInWithMemberPhoto>> GetAllWithMemberPhoto()
     {
         const string sql = """
-            SELECT c.Id, c.MemberId, c.CheckedInAtUtc, c.CreatedByUserId, m.PhotoBase64 AS MemberPhotoBase64
+            SELECT c.Id,
+                   c.MemberId,
+                   m.MemberNumber,
+                   c.CheckedInAtUtc,
+                   c.CreatedByUserId,
+                   m.PhotoBase64 AS MemberPhotoBase64
             FROM dbo.CheckIns c
             INNER JOIN dbo.Members m ON m.Id = c.MemberId
             ORDER BY c.Id DESC

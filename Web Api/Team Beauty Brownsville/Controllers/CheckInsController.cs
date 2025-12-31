@@ -63,6 +63,7 @@ public sealed class CheckInsController : ControllerBase
 
         return Ok(new CheckInScanResponse(
             member.Id,
+            member.MemberNumber,
             member.FullName,
             member.Email,
             member.Phone,
@@ -161,12 +162,13 @@ public sealed class CheckInsController : ControllerBase
 
         var id = await _checkins.Create(checkIn);
         checkIn.Id = id;
-        var response = new CheckInResponse(checkIn.Id, checkIn.MemberId, checkIn.CheckedInAtUtc, checkIn.CreatedByUserId, member.PhotoBase64);
+        var response = new CheckInResponse(checkIn.Id, checkIn.MemberId, member.MemberNumber, checkIn.CheckedInAtUtc, checkIn.CreatedByUserId, member.PhotoBase64);
         await _audit.LogAsync("Create", "CheckIn", id.ToString(), GetUserId(), new { request.MemberId, CheckedInAtUtc = checkedInAtUtc });
         _stream.Publish(new
         {
             id,
             memberId = member.Id,
+            memberNumber = member.MemberNumber,
             fullName = member.FullName,
             photoBase64 = member.PhotoBase64,
             checkedInAtUtc = checkIn.CheckedInAtUtc
@@ -186,6 +188,7 @@ public sealed class CheckInsController : ControllerBase
         return new CheckInResponse(
             checkIn.Id,
             checkIn.MemberId,
+            checkIn.MemberNumber,
             checkIn.CheckedInAtUtc,
             checkIn.CreatedByUserId,
             checkIn.MemberPhotoBase64);

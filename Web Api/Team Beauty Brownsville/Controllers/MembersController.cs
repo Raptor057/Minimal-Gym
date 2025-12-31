@@ -113,6 +113,7 @@ public sealed class MembersController : ControllerBase
     {
         return new MemberResponse(
             member.Id,
+            member.MemberNumber,
             member.FullName,
             member.Phone,
             member.Email,

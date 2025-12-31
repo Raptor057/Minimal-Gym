@@ -24,6 +24,7 @@ public sealed record MemberUpdateRequest(
 
 public sealed record MemberResponse(
     int Id,
+    string MemberNumber,
     string FullName,
     string? Phone,
     string? Email,

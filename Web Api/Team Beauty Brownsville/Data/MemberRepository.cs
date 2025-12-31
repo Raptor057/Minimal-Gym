@@ -15,7 +15,7 @@ public sealed class MemberRepository : IMemberRepository
     public async Task<IReadOnlyList<Member>> GetAll()
     {
         const string sql = """
-            SELECT Id, FullName, Phone, Email, BirthDate, EmergencyContact, Notes,
+            SELECT Id, MemberNumber, FullName, Phone, Email, BirthDate, EmergencyContact, Notes,
                    PhotoBase64, IsActive, IsDeleted, CreatedAtUtc, UpdatedAtUtc
             FROM dbo.Members
             WHERE IsDeleted = 0
@@ -30,7 +30,7 @@ public sealed class MemberRepository : IMemberRepository
     public async Task<Member?> GetById(int id)
     {
         const string sql = """
-            SELECT Id, FullName, Phone, Email, BirthDate, EmergencyContact, Notes,
+            SELECT Id, MemberNumber, FullName, Phone, Email, BirthDate, EmergencyContact, Notes,
                    PhotoBase64, IsActive, IsDeleted, CreatedAtUtc, UpdatedAtUtc
             FROM dbo.Members
             WHERE Id = @Id AND IsDeleted = 0

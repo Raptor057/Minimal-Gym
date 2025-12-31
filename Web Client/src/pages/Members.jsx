@@ -5,6 +5,7 @@ import QRCode from 'qrcode'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
+import { formatMemberId } from '../utils/formatMemberId.js'
 
 const classNames = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -44,14 +45,15 @@ export default function Members() {
     const generate = async () => {
       if (!qrOpen || !qrMember) return
       try {
+        const memberCode = formatMemberId(qrMember.memberNumber ?? qrMember.id)
         const qrCanvas = document.createElement('canvas')
-        await QRCode.toCanvas(qrCanvas, String(qrMember.id), {
+        await QRCode.toCanvas(qrCanvas, memberCode, {
           width: 240,
           margin: 2,
         })
 
         const nameLine = qrMember.fullName ?? 'Member'
-        const idLine = `ID: ${qrMember.id}`
+        const idLine = `ID: ${memberCode}`
         const padding = 12
         const lineHeight = 18
         const textBlockHeight = lineHeight * 2 + 6
@@ -258,7 +260,9 @@ export default function Members() {
             ) : (
               paged.map((member) => (
                 <tr key={member.id} className="hover:bg-slate-50/60">
-                  <td className="px-4 py-4 text-slate-500">{member.id}</td>
+              <td className="px-4 py-4 text-slate-500">
+                {formatMemberId(member.memberNumber ?? member.id)}
+              </td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 overflow-hidden rounded-full bg-indigo-50 text-indigo-600">
@@ -349,18 +353,24 @@ export default function Members() {
             </div>
             <div className="mt-6 flex flex-col items-center gap-3">
               {qrDataUrl ? (
-                <img src={qrDataUrl} alt={`Member ${qrMember?.id}`} className="h-56 w-56" />
+                <img
+                  src={qrDataUrl}
+                  alt={`Member ${formatMemberId(qrMember?.memberNumber ?? qrMember?.id)}`}
+                  className="h-56 w-56"
+                />
               ) : (
                 <div className="h-56 w-56 animate-pulse rounded-2xl bg-slate-100" />
               )}
               <div className="text-center">
                 <div className="text-sm font-semibold text-slate-900">{qrMember?.fullName ?? 'Member'}</div>
-                <div className="text-xs text-slate-500">ID: {qrMember?.id ?? '-'}</div>
+                <div className="text-xs text-slate-500">
+                  ID: {formatMemberId(qrMember?.memberNumber ?? qrMember?.id) || '-'}
+                </div>
               </div>
               {qrDataUrl ? (
                 <a
                   href={qrDataUrl}
-                  download={`member-${qrMember?.id ?? 'qr'}.png`}
+                  download={`member-${formatMemberId(qrMember?.memberNumber ?? qrMember?.id) || 'qr'}.png`}
                   className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
                 >
                   Download QR
