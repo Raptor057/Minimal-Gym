@@ -11,6 +11,7 @@ public sealed class Product
     public string? Category { get; set; }
     public string? PhotoBase64 { get; set; }
     public bool IsActive { get; set; }
+    public decimal Stock { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 }

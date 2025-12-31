@@ -15,9 +15,37 @@ public sealed class ProductRepository : IProductRepository
     public async Task<IReadOnlyList<Product>> GetAll()
     {
         const string sql = """
-            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc, UpdatedAtUtc
-            FROM dbo.Products
-            ORDER BY Id DESC
+            SELECT
+                p.Id,
+                p.Sku,
+                p.Barcode,
+                p.Name,
+                p.SalePriceUsd,
+                p.CostUsd,
+                p.Category,
+                p.PhotoBase64,
+                p.IsActive,
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc,
+                COALESCE(SUM(CASE
+                    WHEN m.MovementType IN ('In', 'Adjust') THEN m.Quantity
+                    WHEN m.MovementType IN ('Out', 'Waste') THEN -m.Quantity
+                    ELSE 0 END), 0) AS Stock
+            FROM dbo.Products p
+            LEFT JOIN dbo.InventoryMovements m ON m.ProductId = p.Id
+            GROUP BY
+                p.Id,
+                p.Sku,
+                p.Barcode,
+                p.Name,
+                p.SalePriceUsd,
+                p.CostUsd,
+                p.Category,
+                p.PhotoBase64,
+                p.IsActive,
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc
+            ORDER BY p.Id DESC
             """;
 
         using var connection = _connectionFactory.Create();
@@ -28,9 +56,37 @@ public sealed class ProductRepository : IProductRepository
     public async Task<Product?> GetById(int id)
     {
         const string sql = """
-            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc, UpdatedAtUtc
-            FROM dbo.Products
-            WHERE Id = @Id
+            SELECT
+                p.Id,
+                p.Sku,
+                p.Barcode,
+                p.Name,
+                p.SalePriceUsd,
+                p.CostUsd,
+                p.Category,
+                p.PhotoBase64,
+                p.IsActive,
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc,
+                COALESCE(SUM(CASE
+                    WHEN m.MovementType IN ('In', 'Adjust') THEN m.Quantity
+                    WHEN m.MovementType IN ('Out', 'Waste') THEN -m.Quantity
+                    ELSE 0 END), 0) AS Stock
+            FROM dbo.Products p
+            LEFT JOIN dbo.InventoryMovements m ON m.ProductId = p.Id
+            WHERE p.Id = @Id
+            GROUP BY
+                p.Id,
+                p.Sku,
+                p.Barcode,
+                p.Name,
+                p.SalePriceUsd,
+                p.CostUsd,
+                p.Category,
+                p.PhotoBase64,
+                p.IsActive,
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc
             """;
 
         using var connection = _connectionFactory.Create();
@@ -40,9 +96,37 @@ public sealed class ProductRepository : IProductRepository
     public async Task<Product?> GetBySku(string sku)
     {
         const string sql = """
-            SELECT Id, Sku, Barcode, Name, SalePriceUsd, CostUsd, Category, PhotoBase64, IsActive, CreatedAtUtc, UpdatedAtUtc
-            FROM dbo.Products
-            WHERE Sku = @Sku
+            SELECT
+                p.Id,
+                p.Sku,
+                p.Barcode,
+                p.Name,
+                p.SalePriceUsd,
+                p.CostUsd,
+                p.Category,
+                p.PhotoBase64,
+                p.IsActive,
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc,
+                COALESCE(SUM(CASE
+                    WHEN m.MovementType IN ('In', 'Adjust') THEN m.Quantity
+                    WHEN m.MovementType IN ('Out', 'Waste') THEN -m.Quantity
+                    ELSE 0 END), 0) AS Stock
+            FROM dbo.Products p
+            LEFT JOIN dbo.InventoryMovements m ON m.ProductId = p.Id
+            WHERE p.Sku = @Sku
+            GROUP BY
+                p.Id,
+                p.Sku,
+                p.Barcode,
+                p.Name,
+                p.SalePriceUsd,
+                p.CostUsd,
+                p.Category,
+                p.PhotoBase64,
+                p.IsActive,
+                p.CreatedAtUtc,
+                p.UpdatedAtUtc
             """;
 
         using var connection = _connectionFactory.Create();

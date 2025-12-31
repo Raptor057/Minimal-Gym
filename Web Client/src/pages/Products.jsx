@@ -110,7 +110,7 @@ export default function Products() {
                   <img
                     alt={product.name}
                     src={product.photoBase64}
-                    className="aspect-square w-full rounded-md bg-slate-100 object-cover group-hover:opacity-90 lg:aspect-auto lg:h-72"
+                    className="aspect-square w-full rounded-md bg-slate-100 object-contain group-hover:opacity-90 lg:aspect-auto lg:h-72"
                   />
                 ) : (
                   <div className="flex aspect-square w-full items-center justify-center rounded-md bg-slate-100 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 lg:aspect-auto lg:h-72">
@@ -123,6 +123,7 @@ export default function Products() {
                     <p className="mt-1 text-xs text-slate-500">
                       {product.category || 'Uncategorized'} - SKU {product.sku}
                     </p>
+                    <p className="mt-1 text-xs text-slate-500">Stock: {product.stock ?? 0}</p>
                   </div>
                   <p className="text-sm font-semibold text-slate-900">{formatPrice(product.salePriceUsd)}</p>
                 </div>

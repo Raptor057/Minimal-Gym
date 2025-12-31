@@ -29,6 +29,7 @@ export default function Sales() {
     paymentReference: '',
   })
   const [saving, setSaving] = useState(false)
+  const [showOutOfStock, setShowOutOfStock] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -80,6 +81,11 @@ export default function Sales() {
     return sales.filter((sale) => String(sale.id).includes(term) || sale.status?.toLowerCase().includes(term))
   }, [search, sales])
 
+  const getProductStock = (productId) => {
+    const product = products.find((entry) => entry.id === Number(productId))
+    return Number(product?.stock ?? 0)
+  }
+
   const openCreate = () => {
     setForm({
       memberId: '',
@@ -109,20 +115,22 @@ export default function Sales() {
 
   const setItemQuantity = (product, nextQuantity) => {
     const normalized = Math.max(0, Number(nextQuantity || 0))
+    const stock = Number(product?.stock ?? 0)
+    const capped = stock > 0 ? Math.min(normalized, stock) : 0
     setItems((prev) => {
       const index = prev.findIndex((entry) => Number(entry.productId) === Number(product.id))
-      if (normalized === 0) {
+      if (capped === 0) {
         return index >= 0 ? prev.filter((_, idx) => idx !== index) : prev
       }
       const nextItem = {
         ...emptyItem,
         productId: String(product.id),
-        quantity: String(normalized),
+        quantity: String(capped),
         unitPriceUsd: String(product.salePriceUsd ?? ''),
       }
       if (index >= 0) {
         return prev.map((entry, idx) =>
-          idx === index ? { ...entry, quantity: String(normalized), unitPriceUsd: entry.unitPriceUsd || nextItem.unitPriceUsd } : entry
+          idx === index ? { ...entry, quantity: String(capped), unitPriceUsd: entry.unitPriceUsd || nextItem.unitPriceUsd } : entry
         )
       }
       return [...prev, nextItem]
@@ -163,6 +171,10 @@ export default function Sales() {
     },
     { subtotal: 0, discount: 0, tax: 0, total: 0 }
   )
+
+  const activeProducts = products.filter((product) => product.isActive)
+  const inStockProducts = activeProducts.filter((product) => Number(product.stock ?? 0) > 0)
+  const outOfStockProducts = activeProducts.filter((product) => Number(product.stock ?? 0) <= 0)
 
   const handleSave = async (event) => {
     event.preventDefault()
@@ -261,7 +273,6 @@ export default function Sales() {
     return `$${numeric.toFixed(2)}`
   }
 
-  const quantityOptions = Array.from({ length: 10 }, (_, index) => index + 1)
 
   return (
     <div>
@@ -405,20 +416,28 @@ export default function Sales() {
                   </div>
                 </div>
 
-                {products.filter((product) => product.isActive).length === 0 ? (
+                {activeProducts.length === 0 ? (
                   <div className="mt-6 text-sm text-slate-500">No active products yet.</div>
                 ) : (
-                  <div className="mt-6 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8">
-                    {products
-                      .filter((product) => product.isActive)
-                      .map((product) => {
+                  <>
+                    {inStockProducts.length === 0 ? (
+                      <div className="mt-6 text-sm text-slate-500">All products are out of stock.</div>
+                    ) : (
+                      <div className="mt-6 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8">
+                        {inStockProducts.map((product) => {
                         const quantity = getItemQuantity(product.id)
+                        const stock = Number(product.stock ?? 0)
+                        const canAdd = stock > 0
                         return (
                           <div key={product.id}>
                             <div className="relative">
                               <div className="relative h-64 w-full overflow-hidden rounded-lg bg-slate-100">
                                 {product.photoBase64 ? (
-                                  <img alt={product.name} src={product.photoBase64} className="size-full object-cover" />
+                                  <img
+                                    alt={product.name}
+                                    src={product.photoBase64}
+                                    className="size-full object-contain p-3"
+                                  />
                                 ) : (
                                   <div className="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                                     No photo
@@ -428,6 +447,7 @@ export default function Sales() {
                               <div className="relative mt-4">
                                 <h3 className="text-sm font-medium text-slate-900">{product.name}</h3>
                                 <p className="mt-1 text-sm text-slate-500">{product.category || 'Uncategorized'}</p>
+                                <p className="mt-1 text-xs text-slate-500">Stock: {product.stock ?? 0}</p>
                               </div>
                               <div className="absolute inset-x-0 top-0 flex h-64 items-end justify-end overflow-hidden rounded-lg p-4">
                                 <div
@@ -458,7 +478,8 @@ export default function Sales() {
                                 <button
                                   type="button"
                                   onClick={() => adjustItemQuantity(product, 1)}
-                                  className="h-9 w-9 text-lg font-semibold text-slate-600"
+                                  disabled={!canAdd || quantity >= stock}
+                                  className="h-9 w-9 text-lg font-semibold text-slate-600 disabled:opacity-40"
                                 >
                                   +
                                 </button>
@@ -467,7 +488,56 @@ export default function Sales() {
                           </div>
                         )
                       })}
-                  </div>
+                      </div>
+                    )}
+
+                    {outOfStockProducts.length > 0 ? (
+                      <div className="mt-10">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                            Out of stock
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowOutOfStock((prev) => !prev)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                          >
+                            {showOutOfStock ? 'Hide' : 'Show'}
+                          </button>
+                        </div>
+                        {showOutOfStock ? (
+                          <div className="mt-4 grid grid-cols-1 gap-y-12 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8">
+                            {outOfStockProducts.map((product) => (
+                              <div key={product.id}>
+                                <div className="relative">
+                                  <div className="relative h-64 w-full overflow-hidden rounded-lg bg-slate-100">
+                                    {product.photoBase64 ? (
+                                      <img
+                                        alt={product.name}
+                                        src={product.photoBase64}
+                                        className="size-full object-contain p-3"
+                                      />
+                                    ) : (
+                                      <div className="flex size-full items-center justify-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                                        No photo
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="relative mt-4">
+                                    <h3 className="text-sm font-medium text-slate-900">{product.name}</h3>
+                                    <p className="mt-1 text-sm text-slate-500">{product.category || 'Uncategorized'}</p>
+                                    <span className="mt-2 inline-flex items-center rounded-full bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-600">
+                                      Out of stock
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
                 )}
 
                 <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6">
@@ -489,6 +559,10 @@ export default function Sales() {
                         <ul role="list" className="divide-y divide-slate-200 border-y border-slate-200">
                           {items.map((item) => {
                             const product = products.find((entry) => entry.id === Number(item.productId))
+                            const stock = product ? getProductStock(product.id) : 0
+                            const isInStock = stock > 0
+                            const maxQty = stock > 0 ? Math.min(10, Math.floor(stock)) : 0
+                            const qtyOptions = maxQty > 0 ? Array.from({ length: maxQty }, (_, index) => index + 1) : [0]
                             const qty = Number(item.quantity || 0)
                             const price = Number(item.unitPriceUsd || 0)
                             const discount = Number(item.discountUsd || 0)
@@ -501,7 +575,7 @@ export default function Sales() {
                                     <img
                                       alt={product?.name ?? 'Product'}
                                       src={product.photoBase64}
-                                      className="h-20 w-20 rounded-md object-cover sm:h-28 sm:w-28"
+                                      className="h-20 w-20 rounded-md object-contain p-2 sm:h-28 sm:w-28"
                                     />
                                   ) : (
                                     <div className="flex h-20 w-20 items-center justify-center rounded-md bg-slate-100 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:h-28 sm:w-28">
@@ -531,9 +605,10 @@ export default function Sales() {
                                           onChange={(event) =>
                                             product ? setItemQuantity(product, Number(event.target.value)) : null
                                           }
-                                          className="col-start-1 row-start-1 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
+                                          disabled={stock <= 0}
+                                          className="col-start-1 row-start-1 appearance-none rounded-md bg-white py-1.5 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 disabled:opacity-50 sm:text-sm/6"
                                         >
-                                          {quantityOptions.map((option) => (
+                                          {qtyOptions.map((option) => (
                                             <option key={option} value={option}>
                                               {option}
                                             </option>
@@ -560,8 +635,12 @@ export default function Sales() {
 
                                   <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
                                     <span className="flex items-center gap-2">
-                                      <CheckIcon aria-hidden="true" className="size-5 text-emerald-500" />
-                                      In stock
+                                      {isInStock ? (
+                                        <CheckIcon aria-hidden="true" className="size-5 text-emerald-500" />
+                                      ) : (
+                                        <XMarkIcon aria-hidden="true" className="size-5 text-rose-500" />
+                                      )}
+                                      {isInStock ? `In stock (${stock})` : 'Out of stock'}
                                     </span>
                                     <span className="text-sm font-semibold text-slate-900">{formatPrice(lineTotal)}</span>
                                   </div>

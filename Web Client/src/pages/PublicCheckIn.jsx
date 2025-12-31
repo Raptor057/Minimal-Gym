@@ -220,11 +220,11 @@ export default function PublicCheckIn() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-black text-white">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-12">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30">
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-slate-800 bg-black text-white shadow-lg shadow-pink-500/20">
               {logo ? <img src={logo} alt="Logo" className="h-full w-full object-cover" /> : 'TB'}
             </div>
             <div className="text-xs uppercase tracking-[0.4em] text-slate-400">Team Beauty Brownsville</div>
@@ -236,7 +236,7 @@ export default function PublicCheckIn() {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <div className="rounded-full border border-slate-800 bg-slate-900 px-5 py-3 text-sm text-slate-300">
+          <div className="rounded-full border border-slate-800 bg-black px-5 py-3 text-sm text-slate-300">
             Scan your member QR or use the handheld scanner.
           </div>
           {scanSupported ? (
@@ -257,7 +257,7 @@ export default function PublicCheckIn() {
         ) : null}
 
         {scanning ? (
-          <div className="mt-6 w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 p-3">
+          <div className="mt-6 w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-black/70 p-3">
             <video ref={videoRef} className="h-64 w-full rounded-2xl object-cover" playsInline muted />
             <div className="mt-3 text-xs text-slate-400">Point the camera at the QR code.</div>
           </div>
@@ -276,12 +276,12 @@ export default function PublicCheckIn() {
         ) : null}
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[320px_1fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+          <div className="rounded-3xl border border-slate-800 bg-black/70 p-6">
             <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Member</div>
             {member ? (
               <>
                 <div className="mt-4 flex items-center gap-4">
-                  <div className="h-16 w-16 overflow-hidden rounded-full bg-slate-800">
+                  <div className="h-16 w-16 overflow-hidden rounded-full bg-black/70">
                     {member.photoBase64 ? (
                       <img src={member.photoBase64} alt={member.fullName} className="h-full w-full object-cover" />
                     ) : null}
@@ -302,24 +302,24 @@ export default function PublicCheckIn() {
             )}
           </div>
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+          <div className="rounded-3xl border border-slate-800 bg-black/70 p-6">
             <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Membership</div>
             {member ? (
               <>
                 <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                  <div className="rounded-2xl border border-slate-800 bg-black/80 p-4">
                     <div className="text-xs text-slate-400">Subscription</div>
                     <div className="mt-2 text-lg font-semibold">
                       {member.subscriptionStatus ?? 'None'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                  <div className="rounded-2xl border border-slate-800 bg-black/80 p-4">
                     <div className="text-xs text-slate-400">Ends</div>
                     <div className="mt-2 text-lg font-semibold">
                       {member.subscriptionEndDate ?? '--'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                  <div className="rounded-2xl border border-slate-800 bg-black/80 p-4">
                     <div className="text-xs text-slate-400">Days left</div>
                     <div className="mt-2 text-lg font-semibold">
                       {member.daysToExpire ?? '--'}
@@ -355,7 +355,7 @@ export default function PublicCheckIn() {
         <div className="mt-10">
           <div className="mb-4 text-xs uppercase tracking-[0.3em] text-slate-400">Recent check-ins</div>
           {recentCheckIns.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-400">
+            <div className="rounded-2xl border border-slate-800 bg-black/70 px-4 py-3 text-sm text-slate-400">
               No check-ins yet.
             </div>
           ) : (
@@ -363,17 +363,17 @@ export default function PublicCheckIn() {
               {recentCheckIns.map((person) => (
                 <li
                   key={person.id}
-                  className="col-span-1 flex flex-col divide-y divide-slate-800 rounded-2xl bg-slate-900/60 text-center shadow-sm"
+                  className="col-span-1 flex flex-col divide-y divide-slate-800 rounded-2xl bg-black/70 text-center shadow-sm"
                 >
                   <div className="flex flex-1 flex-col p-6">
                     {person.imageUrl ? (
                       <img
                         alt=""
                         src={person.imageUrl}
-                        className="mx-auto size-24 shrink-0 rounded-full bg-slate-800 outline -outline-offset-1 outline-black/5"
+                        className="mx-auto size-24 shrink-0 rounded-full bg-black/70 outline -outline-offset-1 outline-black/5"
                       />
                     ) : (
-                      <div className="mx-auto flex size-24 items-center justify-center rounded-full bg-slate-800 text-xl font-semibold text-slate-300">
+                      <div className="mx-auto flex size-24 items-center justify-center rounded-full bg-black/70 text-xl font-semibold text-slate-300">
                         {person.name?.slice(0, 2).toUpperCase()}
                       </div>
                     )}

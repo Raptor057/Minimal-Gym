@@ -20,6 +20,6 @@ export const adminNavigation = [
   { label: 'Users', path: '/users' },
   { label: 'Config', path: '/config' },
   { label: 'Reports', path: '/reports' },
-  { label: 'Audit Log', path: '/audit' },
+  { label: 'Log general', path: '/audit' },
   { label: 'Health', path: '/health' },
 ]

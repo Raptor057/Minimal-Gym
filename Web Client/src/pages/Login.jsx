@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions, Label } from '@headlessui/react'
-import { ChevronDownIcon } from '@heroicons/react/20/solid'
+import { ChevronDownIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/20/solid'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 
@@ -305,8 +305,9 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowLoginPassword((prev) => !prev)}
-                  className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300"
+                  className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-transparent px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
                 >
+                  {showLoginPassword ? <EyeSlashIcon className="size-4" /> : <EyeIcon className="size-4" />}
                   {showLoginPassword ? 'Hide password' : 'Show password'}
                 </button>
                 {fieldErrors.password ? (
@@ -369,8 +370,9 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowSignupPassword((prev) => !prev)}
-                    className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300"
+                    className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-transparent px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200"
                   >
+                    {showSignupPassword ? <EyeSlashIcon className="size-4" /> : <EyeIcon className="size-4" />}
                     {showSignupPassword ? 'Hide password' : 'Show password'}
                   </button>
                   {fieldErrors.password ? (

@@ -24,6 +24,7 @@ import Config from '../pages/Config.jsx'
 import Health from '../pages/Health.jsx'
 import PublicCheckIn from '../pages/PublicCheckIn.jsx'
 import Login from '../pages/Login.jsx'
+import { isAdminRole } from '../utils/auth.js'
 
 export default function AppRoutes() {
   return (
@@ -37,7 +38,13 @@ export default function AppRoutes() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/users" element={<Users />} />
+            <Route element={<RequireAdmin />}>
+              <Route path="/users" element={<Users />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/audit" element={<Audit />} />
+              <Route path="/config" element={<Config />} />
+              <Route path="/health" element={<Health />} />
+            </Route>
             <Route path="/members" element={<Members />} />
             <Route path="/members/new" element={<MembersEditor />} />
             <Route path="/members/:id" element={<MembersEditor />} />
@@ -52,13 +59,9 @@ export default function AppRoutes() {
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/sales" element={<Sales />} />
             <Route path="/cash" element={<Cash />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/audit" element={<Audit />} />
             <Route path="/checkins" element={<CheckIns />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/expenses/new" element={<ExpensesEditor />} />
-            <Route path="/config" element={<Config />} />
-            <Route path="/health" element={<Health />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
@@ -71,6 +74,17 @@ function RequireAuth() {
   const token = localStorage.getItem('access_token')
   if (!token) {
     return <Navigate to="/login" replace />
+  }
+  return <Outlet />
+}
+
+function RequireAdmin() {
+  const token = localStorage.getItem('access_token')
+  if (!token) {
+    return <Navigate to="/login" replace />
+  }
+  if (!isAdminRole()) {
+    return <Navigate to="/dashboard" replace />
   }
   return <Outlet />
 }

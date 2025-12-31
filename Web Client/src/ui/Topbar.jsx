@@ -27,7 +27,7 @@ const titles = {
   '/config': 'Configuration',
   '/health': 'Health',
   '/reports': 'Reports',
-  '/audit': 'Audit Log',
+  '/audit': 'Log general',
 }
 
 export default function Topbar() {

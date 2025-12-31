@@ -10,6 +10,7 @@ const emptyForm = {
   name: '',
   salePriceUsd: '',
   costUsd: '',
+  initialStock: '',
   category: '',
   photoBase64: '',
   isActive: true,
@@ -44,6 +45,7 @@ export default function ProductsEditor() {
           name: data.name ?? '',
           salePriceUsd: data.salePriceUsd ?? '',
           costUsd: data.costUsd ?? '',
+          initialStock: '',
           category: data.category ?? '',
           photoBase64: data.photoBase64 ?? '',
           isActive: data.isActive ?? true,
@@ -76,12 +78,17 @@ export default function ProductsEditor() {
         setError('Cost cannot be negative.')
         return
       }
+      if (!isEdit && Number(form.initialStock) <= 0) {
+        setError('Initial stock must be greater than zero.')
+        return
+      }
 
       const payload = {
         sku: form.sku.trim(),
         name: form.name.trim(),
         salePriceUsd: Number(form.salePriceUsd),
         costUsd: Number(form.costUsd || 0),
+        initialStock: isEdit ? undefined : Number(form.initialStock),
         barcode: form.barcode || null,
         category: form.category || null,
         photoBase64: form.photoBase64 || null,
@@ -237,6 +244,20 @@ export default function ProductsEditor() {
                 />
               </div>
             </div>
+            {!isEdit ? (
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Initial stock
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.initialStock}
+                  onChange={(event) => setForm({ ...form, initialStock: event.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+            ) : null}
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <input
                 type="checkbox"

@@ -392,8 +392,8 @@ export default function Users() {
                             key={role}
                             className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
                               selected
-                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                : 'border-slate-200 text-slate-600'
+                                ? 'border-slate-500 bg-black/70 text-white'
+                                : 'border-slate-500 text-slate-300'
                             }`}
                           >
                             <input

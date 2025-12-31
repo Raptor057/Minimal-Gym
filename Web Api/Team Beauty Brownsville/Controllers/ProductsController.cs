@@ -13,11 +13,13 @@ namespace Team_Beauty_Brownsville.Controllers;
 public sealed class ProductsController : ControllerBase
 {
     private readonly IProductRepository _products;
+    private readonly IInventoryMovementRepository _movements;
     private readonly IAuditService _audit;
 
-    public ProductsController(IProductRepository products, IAuditService audit)
+    public ProductsController(IProductRepository products, IInventoryMovementRepository movements, IAuditService audit)
     {
         _products = products;
+        _movements = movements;
         _audit = audit;
     }
 
@@ -55,6 +57,11 @@ public sealed class ProductsController : ControllerBase
             return BadRequest("SalePriceUsd must be greater than zero and CostUsd cannot be negative.");
         }
 
+        if (request.InitialStock <= 0)
+        {
+            return BadRequest("InitialStock must be greater than zero.");
+        }
+
         var product = new Product
         {
             Sku = normalizedSku,
@@ -69,6 +76,19 @@ public sealed class ProductsController : ControllerBase
         };
 
         var id = await _products.Create(product);
+
+        var movement = new InventoryMovement
+        {
+            ProductId = id,
+            MovementType = "In",
+            Quantity = request.InitialStock,
+            UnitCostUsd = request.CostUsd,
+            Notes = "Initial stock",
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedByUserId = GetUserId()
+        };
+        await _movements.Create(movement);
+
         var created = await _products.GetById(id);
         await _audit.LogAsync("Create", "Product", id.ToString(), GetUserId(), new { request.Sku, request.Name });
         return CreatedAtAction(nameof(GetById), new { id }, ToResponse(created!));
@@ -151,6 +171,7 @@ public sealed class ProductsController : ControllerBase
             product.CostUsd,
             product.Category,
             product.PhotoBase64,
-            product.IsActive);
+            product.IsActive,
+            product.Stock);
     }
 }

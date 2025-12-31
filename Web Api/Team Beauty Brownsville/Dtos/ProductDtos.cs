@@ -5,6 +5,7 @@ public sealed record ProductCreateRequest(
     string Name,
     decimal SalePriceUsd,
     decimal CostUsd,
+    decimal InitialStock,
     string? Barcode,
     string? Category,
     string? PhotoBase64,
@@ -31,5 +32,6 @@ public sealed record ProductResponse(
     decimal CostUsd,
     string? Category,
     string? PhotoBase64,
-    bool IsActive
+    bool IsActive,
+    decimal Stock
 );

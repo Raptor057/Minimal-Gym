@@ -62,6 +62,10 @@ export default function Inventory() {
     })
   }, [search, movements])
 
+  const productById = useMemo(() => {
+    return new Map(products.map((product) => [product.id, product]))
+  }, [products])
+
   const openCreate = () => {
     setForm(emptyForm)
     setModalOpen(true)
@@ -140,6 +144,7 @@ export default function Inventory() {
               <th className="px-4 py-3">Product</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Quantity</th>
+              <th className="px-4 py-3">Stock</th>
               <th className="px-4 py-3">Cost</th>
               <th className="px-4 py-3">Notes</th>
               <th className="px-4 py-3">Date</th>
@@ -148,13 +153,13 @@ export default function Inventory() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={7}>
                   Loading movements...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={7}>
                   No movements found.
                 </td>
               </tr>
@@ -166,6 +171,7 @@ export default function Inventory() {
                     {movementLabels[movement.movementType] ?? movement.movementType}
                   </td>
                   <td className="px-4 py-4 text-slate-600">{movement.quantity}</td>
+                  <td className="px-4 py-4 text-slate-600">{productById.get(movement.productId)?.stock ?? 0}</td>
                   <td className="px-4 py-4 text-slate-600">{movement.unitCostUsd ?? '—'}</td>
                   <td className="px-4 py-4 text-slate-500">{movement.notes ?? '—'}</td>
                   <td className="px-4 py-4 text-slate-400">{movement.createdAtUtc}</td>
@@ -200,7 +206,7 @@ export default function Inventory() {
                   <option value="">Select product</option>
                   {products.filter((p) => p.isActive).map((product) => (
                     <option key={product.id} value={product.id}>
-                      {product.name}
+                      {product.name} (Stock: {product.stock ?? 0})
                     </option>
                   ))}
                 </select>

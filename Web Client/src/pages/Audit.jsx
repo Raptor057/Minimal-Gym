@@ -39,8 +39,8 @@ export default function Audit() {
   return (
     <div>
       <PageHeader
-        eyebrow="Audit"
-        title="Audit log"
+        eyebrow="Admin"
+        title="Log general"
         description="Track every change with timestamps and users."
         actions={
           <button onClick={loadAudit} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">

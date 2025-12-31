@@ -3,8 +3,15 @@
 
 :root {
   font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  color: #0f172a;
-  background-color: #f5f7fb;
+  --brand-bg: #000000;
+  --brand-surface: #0c0c0c;
+  --brand-surface-2: #121212;
+  --brand-accent: #e186b2;
+  --brand-text: #f2f2f2;
+  --brand-text-muted: #b8b8b8;
+  --brand-border: #353535;
+  color: var(--brand-text);
+  background-color: var(--brand-bg);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -12,9 +19,136 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(1200px 800px at 10% 10%, #f8fafc 0%, #eef2ff 45%, #f1f5f9 100%);
+  background: var(--brand-bg);
+  color: var(--brand-text);
 }
 
 .font-display {
   font-family: "Fraunces", ui-serif, Georgia, serif;
+}
+
+/* Brand theme overrides */
+[class~="bg-white"],
+[class~="bg-white/80"],
+[class~="bg-white/90"],
+[class~="bg-indigo-50"],
+[class~="bg-slate-50"],
+[class~="bg-slate-100"] {
+  background-color: var(--brand-surface) !important;
+}
+
+[class~="bg-slate-200"],
+[class~="bg-slate-900"],
+[class~="bg-gray-50"],
+[class~="bg-gray-100"] {
+  background-color: var(--brand-surface-2) !important;
+}
+
+[class~="bg-indigo-600"],
+[class~="bg-indigo-500"] {
+  background-color: var(--brand-accent) !important;
+}
+
+:where([class*="hover:bg-indigo-"]:hover) {
+  background-color: var(--brand-accent) !important;
+}
+
+:where([class*="hover:bg-indigo-50"]:hover) {
+  background-color: var(--brand-surface-2) !important;
+}
+
+[class~="text-slate-900"],
+[class~="text-slate-700"],
+[class~="text-gray-900"] {
+  color: var(--brand-text) !important;
+}
+
+[class~="text-slate-600"],
+[class~="text-slate-500"],
+[class~="text-gray-600"],
+[class~="text-gray-500"] {
+  color: var(--brand-text-muted) !important;
+}
+
+[class~="text-indigo-600"],
+[class~="text-indigo-700"] {
+  color: var(--brand-text) !important;
+}
+
+[class*="border-slate-"],
+[class*="border-gray-"],
+[class*="outline-slate-"],
+[class*="outline-gray-"] {
+  border-color: var(--brand-border) !important;
+  outline-color: var(--brand-border) !important;
+}
+
+button,
+[role="button"],
+a.rounded-full {
+  background-color: var(--brand-accent) !important;
+  color: var(--brand-text) !important;
+  border-color: var(--brand-border) !important;
+}
+
+button[class*="bg-transparent"],
+[role="button"][class*="bg-transparent"],
+a.rounded-full[class*="bg-transparent"] {
+  background-color: transparent !important;
+  color: var(--brand-text) !important;
+}
+
+button[class*="border-"],
+[role="button"][class*="border-"],
+a.rounded-full[class*="border-"] {
+  color: var(--brand-text) !important;
+}
+
+button[class*="text-slate-500"][class*="hover:text-slate-900"],
+button[class*="text-slate-500"][class*="hover:text-slate-900"]:hover,
+button[class*="text-slate-500"][class*="hover:text-slate-900"]:focus {
+  border: 1px solid var(--brand-border);
+  border-radius: 9999px;
+  padding: 0.35rem 0.9rem;
+  background: transparent;
+  color: var(--brand-text) !important;
+}
+
+button[class*="text-xs"][class*="text-slate-500"][class*="hover:text-slate-900"] {
+  padding: 0.25rem 0.75rem;
+}
+
+/* Card-like surfaces: add soft pink glow */
+[class*="rounded-"][class*="border-"],
+[class*="rounded-"][class*="outline-"] {
+  box-shadow: 0 12px 26px rgba(225, 134, 178, 0.25);
+}
+
+::placeholder {
+  color: rgba(242, 242, 242, 0.6);
+}
+
+select,
+option {
+  background-color: var(--brand-surface);
+  color: var(--brand-text);
+}
+
+/* Dark scrollbar */
+* {
+  scrollbar-color: #111111 #000000;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #111111;
+  border-radius: 999px;
 }
