@@ -1,4 +1,4 @@
-# Team Beauty Brownsville - Technical Documentation
+﻿# Team Beauty Brownsville - Technical Documentation
 
 Monolith gym management system (single .NET 8 Web API + React client). Backend stores UTC; frontend renders local time.
 
@@ -7,6 +7,10 @@ Monolith gym management system (single .NET 8 Web API + React client). Backend s
 - Frontend: React (Vite), Tailwind CSS v4.1, Axios, React Router
 - Tests: xUnit (API controllers/services)
 - Container: Docker + docker-compose
+
+## Documentation
+- User manual: MANUAL_USUARIO.md
+- Local summary (not committed): RESUMEN.md
 
 ## Repository layout
 - `Web Api/Team Beauty Brownsville`: .NET Web API
@@ -142,4 +146,3 @@ dotnet test
 - Stock cannot go negative (enforced in Sales + Inventory).
 - Refunds add stock back.
 - Cash session must be open to record sales and payments.
-
