@@ -11,7 +11,7 @@ Este manual describe el uso del sistema de gimnasio (web) para administracion y 
 - Dashboard: indicadores en tiempo real (membresias activas, check-ins de hoy, pagos, caja).
 - Members: altas, edicion y consulta de miembros.
 - Membership Plans: planes y precios de membresia.
-- Subscriptions: suscripciones de miembros.
+- Subscriptions: suscripciones de miembros (renovaciones y cambios de plan).
 - Payments: pagos de suscripciones.
 - Products: productos y precios.
 - Sales: ventas de productos (POS).
@@ -47,6 +47,12 @@ Este manual describe el uso del sistema de gimnasio (web) para administracion y 
 ## Payments
 - Ir a Payments y usar "Record payment".
 - Seleccionar miembro, suscripcion, metodo y monto.
+- Pagos no-cash requieren comprobante.
+
+## Subscriptions
+- Crear suscripcion desde la fila del miembro.
+- Renovar redirige a pago.
+- Upgrade/Downgrade plan crea una suscripcion nueva y solicita pago antes de cancelar la anterior.
 
 ## Expenses
 - Ir a Expenses y usar "Add expense".
@@ -55,6 +61,7 @@ Este manual describe el uso del sistema de gimnasio (web) para administracion y 
 ## Cash
 - Abrir caja antes de registrar ventas/pagos.
 - Cerrar caja al final del dia.
+- La caja debe estar abierta para crear/renovar/cambiar suscripciones.
 
 ## Configuracion
 - Cambiar impuestos, prefijo/folio de recibo y logo.
@@ -63,4 +70,7 @@ Este manual describe el uso del sistema de gimnasio (web) para administracion y 
 ## Consejos
 - Usar HTTPS en dispositivos moviles para activar camara.
 - Mantener SKUs unicos para evitar errores.
+
+## Versiones
+- Las versiones del API y del frontend se muestran en el login y en la barra lateral.
 

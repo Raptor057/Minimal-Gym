@@ -560,6 +560,7 @@ export default function Subscriptions() {
                 <select
                   value={form.memberId}
                   onChange={(event) => setForm({ ...form, memberId: event.target.value })}
+                  disabled={Boolean(form.memberId)}
                   className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 >
                   <option value="">Select member</option>

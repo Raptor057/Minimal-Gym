@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import Logo from './Logo.jsx'
 import { adminNavigation, operationsNavigation, primaryNavigation } from '../data/navigation.js'
 import { getAuthUserName, isAdminRole } from '../utils/auth.js'
+import api from '../api/axios.js'
+import appVersion from '../../VERSION?raw'
 
 const baseLink =
   'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition'
@@ -35,6 +38,25 @@ function SidebarSection({ title, items }) {
 export default function Sidebar() {
   const userName = getAuthUserName()
   const isAdmin = isAdminRole()
+  const [apiVersion, setApiVersion] = useState('unknown')
+  const frontendVersion = String(appVersion || '').trim() || 'unknown'
+
+  useEffect(() => {
+    let isMounted = true
+    api
+      .get('/health/version')
+      .then((response) => {
+        if (!isMounted) return
+        setApiVersion(response.data?.version ?? 'unknown')
+      })
+      .catch(() => {
+        if (isMounted) setApiVersion('unknown')
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
       <div className="flex grow flex-col gap-10 overflow-y-auto border-r border-slate-200/60 bg-white/80 px-6 py-10 backdrop-blur">
@@ -49,7 +71,11 @@ export default function Sidebar() {
         <SidebarSection title="Operations" items={operationsNavigation} />
         {isAdmin ? <SidebarSection title="Admin" items={adminNavigation} /> : null}
         <div className="mt-auto rounded-xl border border-slate-200/80 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-          API status: <span className="font-semibold text-emerald-600">ready</span>
+          <div>
+            API status: <span className="font-semibold text-emerald-600">ready</span>
+          </div>
+          <div>API version: <span className="font-semibold text-slate-700">{apiVersion}</span></div>
+          <div>Frontend version: <span className="font-semibold text-slate-700">{frontendVersion}</span></div>
         </div>
       </div>
     </aside>

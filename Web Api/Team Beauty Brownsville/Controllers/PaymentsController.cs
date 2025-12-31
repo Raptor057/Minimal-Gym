@@ -101,6 +101,46 @@ public sealed class PaymentsController : ControllerBase
 
         var id = await _payments.Create(payment);
         var created = await _payments.GetById(id);
+        if (created is not null)
+        {
+            var updatedSubscription = await _subscriptions.GetById(subscriptionId);
+            if (updatedSubscription is not null &&
+                string.Equals(updatedSubscription.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                await _subscriptions.Update(
+                    updatedSubscription.Id,
+                    null,
+                    null,
+                    "Active",
+                    null,
+                    DateTime.UtcNow);
+
+                var memberSubscriptions = await _subscriptions.GetByMemberId(updatedSubscription.MemberId);
+                foreach (var sub in memberSubscriptions.Where(sub =>
+                             sub.Id != updatedSubscription.Id &&
+                             (string.Equals(sub.Status, "Active", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(sub.Status, "Paused", StringComparison.OrdinalIgnoreCase))))
+                {
+                    var adjustedEnd = sub.EndDate;
+                    if (sub.EndDate >= updatedSubscription.StartDate)
+                    {
+                        adjustedEnd = updatedSubscription.StartDate.AddDays(-1);
+                        if (adjustedEnd < sub.StartDate)
+                        {
+                            adjustedEnd = sub.StartDate;
+                        }
+                    }
+
+                    await _subscriptions.Update(
+                        sub.Id,
+                        null,
+                        adjustedEnd,
+                        "Cancelled",
+                        null,
+                        DateTime.UtcNow);
+                }
+            }
+        }
         await _audit.LogAsync("Create", "Payment", id.ToString(), GetUserId(), new { subscriptionId, request.AmountUsd, request.PaymentMethodId });
         return Created($"/payments/{id}", ToResponse(created!));
     }

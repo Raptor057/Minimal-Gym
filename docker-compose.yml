@@ -14,8 +14,8 @@ services:
 
   webapi:
     build:
-      context: ./Web Api/Team Beauty Brownsville
-      dockerfile: Dockerfile
+      context: ./Web Api
+      dockerfile: Team Beauty Brownsville/Dockerfile
     container_name: team-beauty-brownsville-api
     depends_on:
       - sqlserver

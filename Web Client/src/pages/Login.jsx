@@ -3,6 +3,7 @@ import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOption
 import { ChevronDownIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/20/solid'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
+import appVersion from '../../VERSION?raw'
 
 const initialLogin = { userName: '', password: '' }
 const initialSignup = {
@@ -30,6 +31,7 @@ export default function Login() {
   const [users, setUsers] = useState([])
   const [query, setQuery] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
+  const [apiVersion, setApiVersion] = useState('unknown')
   const navigate = useNavigate()
 
   const fetchBootstrapStatus = async () => {
@@ -59,6 +61,22 @@ export default function Login() {
 
   useEffect(() => {
     fetchUsers()
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    api
+      .get('/health/version')
+      .then((response) => {
+        if (!isMounted) return
+        setApiVersion(response.data?.version ?? 'unknown')
+      })
+      .catch(() => {
+        if (isMounted) setApiVersion('unknown')
+      })
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const filteredUsers = useMemo(() => {
@@ -321,6 +339,9 @@ export default function Login() {
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
+              <div className="text-xs text-slate-500">
+                API {apiVersion} • Frontend {String(appVersion || '').trim() || 'unknown'}
+              </div>
             </form>
           ) : (
             <form onSubmit={handleSignup} className="mt-6 space-y-4">
@@ -438,6 +459,9 @@ export default function Login() {
               >
                 {loading ? 'Creating...' : 'Create admin'}
               </button>
+              <div className="text-xs text-slate-500">
+                API {apiVersion} • Frontend {String(appVersion || '').trim() || 'unknown'}
+              </div>
             </form>
           )}
         </div>

@@ -89,6 +89,7 @@ Frontend:
 - Reports: `/reports/revenue`, `/reports/sales`, `/reports/subscriptions/status`, `/reports/subscriptions/due`, `/reports/inventory/low-stock`
 - Audit log: `/audit`
 - Health: `/health`
+- Version: `GET /health/version` (public)
 
 Swagger:
 - Available at `http://localhost:5057/swagger` (after API is running)
@@ -146,3 +147,4 @@ dotnet test
 - Stock cannot go negative (enforced in Sales + Inventory).
 - Refunds add stock back.
 - Cash session must be open to record sales and payments.
+- Versions are stored in `Web Api/VERSION` and `Web Client/VERSION` and shown in sidebar/login.

@@ -237,7 +237,7 @@ BEGIN
     PausedAtUtc        DATETIME2(0) NULL,
     CreatedAtUtc       DATETIME2(0) NOT NULL CONSTRAINT DF_Subscriptions_CreatedAtUtc DEFAULT (SYSUTCDATETIME()),
     UpdatedAtUtc       DATETIME2(0) NULL,
-    CONSTRAINT CK_Subscriptions_Status CHECK (Status IN ('Active','Expired','Paused','Cancelled')),
+    CONSTRAINT CK_Subscriptions_Status CHECK (Status IN ('Active','Expired','Paused','Cancelled','Pending')),
     CONSTRAINT FK_Subscriptions_Members FOREIGN KEY (MemberId) REFERENCES dbo.Members(Id),
     CONSTRAINT FK_Subscriptions_Plans FOREIGN KEY (PlanId) REFERENCES dbo.MembershipPlans(Id)
   );
@@ -247,6 +247,18 @@ GO
 IF COL_LENGTH('dbo.Subscriptions', 'PausedAtUtc') IS NULL
 BEGIN
   ALTER TABLE dbo.Subscriptions ADD PausedAtUtc DATETIME2(0) NULL;
+END
+GO
+
+IF OBJECT_ID(N'dbo.Subscriptions', N'U') IS NOT NULL
+BEGIN
+  IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Subscriptions_Status')
+  BEGIN
+    ALTER TABLE dbo.Subscriptions DROP CONSTRAINT CK_Subscriptions_Status;
+  END
+
+  ALTER TABLE dbo.Subscriptions
+  ADD CONSTRAINT CK_Subscriptions_Status CHECK (Status IN ('Active','Expired','Paused','Cancelled','Pending'));
 END
 GO
 

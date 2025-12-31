@@ -49,6 +49,7 @@ public sealed class BootstrapController : ControllerBase
             FullName = request.FullName.Trim(),
             Email = request.Email?.Trim(),
             Phone = request.Phone?.Trim(),
+            PhotoBase64 = string.IsNullOrWhiteSpace(request.PhotoBase64) ? null : request.PhotoBase64.Trim(),
             IsActive = request.IsActive,
             IsLocked = request.IsLocked,
             CreatedAtUtc = now

@@ -15,17 +15,20 @@ public sealed class SubscriptionsController : ControllerBase
     private readonly IMembershipPlanRepository _plans;
     private readonly IMemberRepository _members;
     private readonly IAuditService _audit;
+    private readonly ICashRepository _cash;
 
     public SubscriptionsController(
         ISubscriptionRepository subscriptions,
         IMembershipPlanRepository plans,
         IMemberRepository members,
-        IAuditService audit)
+        IAuditService audit,
+        ICashRepository cash)
     {
         _subscriptions = subscriptions;
         _plans = plans;
         _members = members;
         _audit = audit;
+        _cash = cash;
     }
 
     [HttpGet("subscriptions")]
@@ -51,6 +54,12 @@ public sealed class SubscriptionsController : ControllerBase
     [HttpPost("members/{memberId:int}/subscriptions")]
     public async Task<ActionResult<SubscriptionResponse>> Create(int memberId, [FromBody] SubscriptionCreateRequest request)
     {
+        var openSession = await _cash.GetOpenSession();
+        if (openSession is null)
+        {
+            return BadRequest("No open cash session. Open cash before creating subscriptions.");
+        }
+
         var member = await _members.GetById(memberId);
         if (member is null)
         {
@@ -129,6 +138,12 @@ public sealed class SubscriptionsController : ControllerBase
     [HttpPost("subscriptions/{id:int}/renew")]
     public async Task<ActionResult<SubscriptionResponse>> Renew(int id, [FromBody] SubscriptionRenewRequest request)
     {
+        var openSession = await _cash.GetOpenSession();
+        if (openSession is null)
+        {
+            return BadRequest("No open cash session. Open cash before renewing subscriptions.");
+        }
+
         var existing = await _subscriptions.GetById(id);
         if (existing is null)
         {
@@ -166,6 +181,12 @@ public sealed class SubscriptionsController : ControllerBase
     [HttpPost("subscriptions/{id:int}/change-plan")]
     public async Task<ActionResult<SubscriptionResponse>> ChangePlan(int id, [FromBody] SubscriptionChangePlanRequest request)
     {
+        var openSession = await _cash.GetOpenSession();
+        if (openSession is null)
+        {
+            return BadRequest("No open cash session. Open cash before changing plans.");
+        }
+
         var existing = await _subscriptions.GetById(id);
         if (existing is null)
         {
@@ -187,30 +208,13 @@ public sealed class SubscriptionsController : ControllerBase
         var startDate = (request.StartDate ?? DateTime.UtcNow).Date;
         var endDate = startDate.AddDays(plan.DurationDays);
 
-        var normalizedStatus = string.Empty + existing.Status;
-        if (string.Equals(normalizedStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(normalizedStatus, "Paused", StringComparison.OrdinalIgnoreCase))
-        {
-            var adjustedEnd = existing.EndDate;
-            if (existing.EndDate >= startDate)
-            {
-                adjustedEnd = startDate.AddDays(-1);
-                if (adjustedEnd < existing.StartDate)
-                {
-                    adjustedEnd = existing.StartDate;
-                }
-            }
-
-            await _subscriptions.Update(id, null, adjustedEnd, "Cancelled", null, DateTime.UtcNow);
-        }
-
         var subscription = new Subscription
         {
             MemberId = existing.MemberId,
             PlanId = plan.Id,
             StartDate = startDate,
             EndDate = endDate,
-            Status = "Active",
+            Status = "Pending",
             PriceUsd = plan.PriceUsd,
             CreatedAtUtc = DateTime.UtcNow
         };

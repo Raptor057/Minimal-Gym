@@ -1,9 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["Team Beauty Brownsville.csproj", "./"]
-RUN dotnet restore "./Team Beauty Brownsville.csproj"
+COPY ["Team Beauty Brownsville/Team Beauty Brownsville.csproj", "Team Beauty Brownsville/"]
+RUN dotnet restore "Team Beauty Brownsville/Team Beauty Brownsville.csproj"
 COPY . .
-RUN dotnet publish "./Team Beauty Brownsville.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "Team Beauty Brownsville/Team Beauty Brownsville.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
