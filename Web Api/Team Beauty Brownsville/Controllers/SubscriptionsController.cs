@@ -163,6 +163,69 @@ public sealed class SubscriptionsController : ControllerBase
         return Ok(ToResponse(updated!));
     }
 
+    [HttpPost("subscriptions/{id:int}/change-plan")]
+    public async Task<ActionResult<SubscriptionResponse>> ChangePlan(int id, [FromBody] SubscriptionChangePlanRequest request)
+    {
+        var existing = await _subscriptions.GetById(id);
+        if (existing is null)
+        {
+            return NotFound();
+        }
+
+        var plan = await _plans.GetById(request.PlanId);
+        if (plan is null || !plan.IsActive)
+        {
+            return BadRequest("Plan not found or inactive.");
+        }
+
+        var subs = await _subscriptions.GetByMemberId(existing.MemberId);
+        if (HasActiveSubscription(subs, existing.Id))
+        {
+            return BadRequest("Member already has another active subscription.");
+        }
+
+        var startDate = (request.StartDate ?? DateTime.UtcNow).Date;
+        var endDate = startDate.AddDays(plan.DurationDays);
+
+        var normalizedStatus = string.Empty + existing.Status;
+        if (string.Equals(normalizedStatus, "Active", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalizedStatus, "Paused", StringComparison.OrdinalIgnoreCase))
+        {
+            var adjustedEnd = existing.EndDate;
+            if (existing.EndDate >= startDate)
+            {
+                adjustedEnd = startDate.AddDays(-1);
+                if (adjustedEnd < existing.StartDate)
+                {
+                    adjustedEnd = existing.StartDate;
+                }
+            }
+
+            await _subscriptions.Update(id, null, adjustedEnd, "Cancelled", null, DateTime.UtcNow);
+        }
+
+        var subscription = new Subscription
+        {
+            MemberId = existing.MemberId,
+            PlanId = plan.Id,
+            StartDate = startDate,
+            EndDate = endDate,
+            Status = "Active",
+            PriceUsd = plan.PriceUsd,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        var newId = await _subscriptions.Create(subscription);
+        var created = await _subscriptions.GetById(newId);
+        await _audit.LogAsync(
+            "ChangePlan",
+            "Subscription",
+            newId.ToString(),
+            GetUserId(),
+            new { PreviousSubscriptionId = id, request.PlanId, StartDate = startDate, EndDate = endDate });
+        return Created($"/subscriptions/{newId}", ToResponse(created!));
+    }
+
     private int? GetUserId()
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");

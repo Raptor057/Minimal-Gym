@@ -15,6 +15,11 @@ public sealed record SubscriptionRenewRequest(
     DateTime? StartDate
 );
 
+public sealed record SubscriptionChangePlanRequest(
+    int PlanId,
+    DateTime? StartDate
+);
+
 public sealed record SubscriptionResponse(
     int Id,
     int MemberId,

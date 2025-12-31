@@ -36,6 +36,8 @@ export default function Subscriptions() {
   const [form, setForm] = useState(emptyForm)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState(emptyEditForm)
+  const [changeModalOpen, setChangeModalOpen] = useState(false)
+  const [changeForm, setChangeForm] = useState({ subscriptionId: null, memberId: '', planId: '', startDate: '' })
   const [saving, setSaving] = useState(false)
   const navigate = useNavigate()
 
@@ -249,6 +251,40 @@ export default function Subscriptions() {
     }
   }
 
+  const openChangePlan = (subscription) => {
+    setChangeForm({ subscriptionId: subscription.id, memberId: String(subscription.memberId), planId: '', startDate: '' })
+    setChangeModalOpen(true)
+  }
+
+  const closeChangePlan = () => {
+    setChangeModalOpen(false)
+    setChangeForm({ subscriptionId: null, memberId: '', planId: '', startDate: '' })
+  }
+
+  const handleChangePlanSave = async (event) => {
+    event.preventDefault()
+    if (!changeForm.subscriptionId) return
+    setSaving(true)
+    setError('')
+    try {
+      if (!changeForm.planId) {
+        setError('Select a plan.')
+        return
+      }
+      const { data } = await api.post(`/subscriptions/${changeForm.subscriptionId}/change-plan`, {
+        planId: Number(changeForm.planId),
+        startDate: changeForm.startDate || null,
+      })
+      await loadSubscriptions()
+      closeChangePlan()
+      navigate(`/payments/new?memberId=${data.memberId}&subscriptionId=${data.id}&amount=${data.priceUsd}`)
+    } catch (err) {
+      setError(err?.response?.data ?? 'Unable to change plan.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -372,6 +408,12 @@ export default function Subscriptions() {
                           >
                             Renew
                           </button>
+                          <button
+                            onClick={() => openChangePlan(sub)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                          >
+                            Upgrade/Downgrade plan
+                          </button>
                           {sub.status !== 'Cancelled' ? (
                             <button
                               onClick={() => handleCancel(sub.id)}
@@ -472,6 +514,12 @@ export default function Subscriptions() {
                               className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-600"
                             >
                               Renew
+                            </button>
+                            <button
+                              onClick={() => openChangePlan(latestSubscription)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                            >
+                              Upgrade/Downgrade plan
                             </button>
                             {latestSubscription.status !== 'Cancelled' ? (
                               <button
@@ -631,6 +679,67 @@ export default function Subscriptions() {
                   className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {saving ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {changeModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
+          <div className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display text-xl text-slate-900">Upgrade/Downgrade plan</h3>
+                <p className="mt-1 text-sm text-slate-500">Create a new subscription with a different plan.</p>
+              </div>
+              <button onClick={closeChangePlan} className="text-sm text-slate-500 hover:text-slate-900">
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePlanSave} className="mt-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Plan</label>
+                <select
+                  value={changeForm.planId}
+                  onChange={(event) => setChangeForm({ ...changeForm, planId: event.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">Select plan</option>
+                  {plans.filter((plan) => plan.isActive).map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name} (${plan.priceUsd})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Start date (optional)
+                </label>
+                <input
+                  type="date"
+                  value={changeForm.startDate}
+                  onChange={(event) => setChangeForm({ ...changeForm, startDate: event.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeChangePlan}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : 'Create subscription'}
                 </button>
               </div>
             </form>
