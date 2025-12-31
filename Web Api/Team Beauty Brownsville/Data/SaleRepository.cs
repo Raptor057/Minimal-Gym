@@ -93,8 +93,8 @@ public sealed class SaleRepository : ISaleRepository
     public async Task CreateSalePayment(SalePayment payment)
     {
         const string sql = """
-            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64)
-            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference, @ProofBase64)
+            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64, CreatedByUserId)
+            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference, @ProofBase64, @CreatedByUserId)
             """;
 
         using var connection = _connectionFactory.Create();
@@ -109,8 +109,8 @@ public sealed class SaleRepository : ISaleRepository
         }
 
         const string sql = """
-            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64)
-            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference, @ProofBase64)
+            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64, CreatedByUserId)
+            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference, @ProofBase64, @CreatedByUserId)
             """;
 
         using var connection = _connectionFactory.Create();
@@ -138,10 +138,21 @@ public sealed class SaleRepository : ISaleRepository
     public async Task<IReadOnlyList<SalePayment>> GetPaymentsBySaleId(int saleId)
     {
         const string sql = """
-            SELECT Id, SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64
-            FROM dbo.SalePayments
-            WHERE SaleId = @SaleId
-            ORDER BY Id ASC
+            SELECT sp.Id,
+                   sp.SaleId,
+                   sp.PaymentMethodId,
+                   pm.Name AS PaymentMethodName,
+                   sp.AmountUsd,
+                   sp.PaidAtUtc,
+                   sp.Reference,
+                   sp.ProofBase64,
+                   sp.CreatedByUserId,
+                   u.FullName AS CreatedByUserName
+            FROM dbo.SalePayments sp
+            INNER JOIN dbo.PaymentMethods pm ON pm.Id = sp.PaymentMethodId
+            LEFT JOIN dbo.Users u ON u.Id = sp.CreatedByUserId
+            WHERE sp.SaleId = @SaleId
+            ORDER BY sp.Id ASC
             """;
 
         using var connection = _connectionFactory.Create();

@@ -18,12 +18,14 @@ public sealed class CashController : ControllerBase
     };
 
     private readonly ICashRepository _cash;
+    private readonly IUserRepository _users;
     private readonly IAuditService _audit;
     private readonly ICashBalanceService _balances;
 
-    public CashController(ICashRepository cash, IAuditService audit, ICashBalanceService balances)
+    public CashController(ICashRepository cash, IUserRepository users, IAuditService audit, ICashBalanceService balances)
     {
         _cash = cash;
+        _users = users;
         _audit = audit;
         _balances = balances;
     }
@@ -36,6 +38,22 @@ public sealed class CashController : ControllerBase
             return BadRequest("OpeningAmountUsd cannot be negative.");
         }
 
+        if (request.UserId <= 0 || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest("UserId and Password are required.");
+        }
+
+        var user = await _users.GetById(request.UserId);
+        if (user is null || !user.IsActive || user.IsLocked)
+        {
+            return BadRequest("Invalid user for opening cash.");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            return BadRequest("Invalid password for cash opening.");
+        }
+
         var existing = await _cash.GetOpenSession();
         if (existing is not null)
         {
@@ -44,7 +62,7 @@ public sealed class CashController : ControllerBase
 
         var session = new CashSession
         {
-            OpenedByUserId = GetUserId() ?? 0,
+            OpenedByUserId = user.Id,
             OpenedAtUtc = DateTime.UtcNow,
             OpeningAmountUsd = request.OpeningAmountUsd,
             Status = "Open"
@@ -57,7 +75,7 @@ public sealed class CashController : ControllerBase
             session.Id = id;
         }
 
-        await _audit.LogAsync("Open", "CashSession", (created?.Id ?? id).ToString(), GetUserId(), new { request.OpeningAmountUsd });
+        await _audit.LogAsync("Open", "CashSession", (created?.Id ?? id).ToString(), user.Id, new { request.OpeningAmountUsd });
         return Created($"/cash/current", ToResponse(created ?? session));
     }
 

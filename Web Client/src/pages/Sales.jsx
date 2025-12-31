@@ -341,6 +341,16 @@ export default function Sales() {
     return `$${numeric.toFixed(2)}`
   }
 
+  const downloadProof = (payment) => {
+    if (!payment?.proofBase64) return
+    const link = document.createElement('a')
+    link.href = payment.proofBase64
+    link.download = `sale-${details?.sale?.id ?? 'payment'}-proof.png`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
   const saleStatusClass = (status) => {
     const normalized = String(status || '').toLowerCase()
     if (normalized === 'completed') return 'bg-emerald-50 text-emerald-700'
@@ -962,25 +972,38 @@ export default function Sales() {
                           <th className="px-4 py-3">Method</th>
                           <th className="px-4 py-3">Amount</th>
                           <th className="px-4 py-3">Paid at</th>
+                          <th className="px-4 py-3 text-right">Proof</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {details.payments.length === 0 ? (
                           <tr>
-                            <td className="px-4 py-4 text-sm text-slate-500" colSpan={3}>
+                            <td className="px-4 py-4 text-sm text-slate-500" colSpan={4}>
                               No payments.
                             </td>
                           </tr>
                         ) : (
                           details.payments.map((payment) => {
-                            const method = methods.find((m) => m.id === payment.paymentMethodId)
                             return (
                               <tr key={payment.id}>
                                 <td className="px-4 py-4 text-slate-900">
-                                  {method?.name ?? `Method #${payment.paymentMethodId}`}
+                                  {payment.paymentMethodName ?? `Method #${payment.paymentMethodId}`}
                                 </td>
                                 <td className="px-4 py-4 text-slate-600">${payment.amountUsd}</td>
                                 <td className="px-4 py-4 text-slate-500">{payment.paidAtUtc}</td>
+                                <td className="px-4 py-4 text-right">
+                                  {payment.proofBase64 &&
+                                  String(payment.paymentMethodName || '').toLowerCase() !== 'cash' ? (
+                                    <button
+                                      onClick={() => downloadProof(payment)}
+                                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                                    >
+                                      Download proof
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">--</span>
+                                  )}
+                                </td>
                               </tr>
                             )
                           })

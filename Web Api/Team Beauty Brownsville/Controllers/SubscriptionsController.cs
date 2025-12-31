@@ -28,6 +28,13 @@ public sealed class SubscriptionsController : ControllerBase
         _audit = audit;
     }
 
+    [HttpGet("subscriptions")]
+    public async Task<ActionResult<IEnumerable<SubscriptionResponse>>> GetAll()
+    {
+        var list = await _subscriptions.GetAll();
+        return Ok(list.Select(ToResponse));
+    }
+
     [HttpGet("members/{memberId:int}/subscriptions")]
     public async Task<ActionResult<IEnumerable<SubscriptionResponse>>> GetByMember(int memberId)
     {

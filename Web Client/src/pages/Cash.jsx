@@ -4,7 +4,7 @@ import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 import EmptyPanel from '../ui/EmptyPanel.jsx'
 
-const emptyOpen = { openingAmountUsd: '' }
+const emptyOpen = { openingAmountUsd: '', userId: '', password: '' }
 const emptyMovement = { movementType: 'In', amountUsd: '', notes: '' }
 const emptyClose = {
   cashTotalUsd: '',
@@ -18,6 +18,7 @@ export default function Cash() {
   const [current, setCurrent] = useState(null)
   const [closures, setClosures] = useState([])
   const [movements, setMovements] = useState([])
+  const [users, setUsers] = useState([])
   const [summary, setSummary] = useState(null)
   const [summaryModal, setSummaryModal] = useState(false)
   const [summaryDetails, setSummaryDetails] = useState(null)
@@ -46,6 +47,15 @@ export default function Cash() {
         return
       }
       setError(err?.response?.data ?? 'Unable to load cash session.')
+    }
+  }
+
+  const loadUsers = async () => {
+    try {
+      const { data } = await api.get('/public/users')
+      setUsers(Array.isArray(data) ? data : [])
+    } catch {
+      setUsers([])
     }
   }
 
@@ -79,7 +89,7 @@ export default function Cash() {
   useEffect(() => {
     setLoading(true)
     setError('')
-    Promise.all([loadCurrent(), loadClosures(), loadMovements()]).finally(() => setLoading(false))
+    Promise.all([loadCurrent(), loadClosures(), loadMovements(), loadUsers()]).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
@@ -129,7 +139,15 @@ export default function Cash() {
         setError('Opening amount cannot be negative.')
         return
       }
-      const { data } = await api.post('/cash/open', { openingAmountUsd: amount })
+      if (!openForm.userId || !openForm.password) {
+        setError('Select a user and enter a password.')
+        return
+      }
+      const { data } = await api.post('/cash/open', {
+        openingAmountUsd: amount,
+        userId: Number(openForm.userId),
+        password: openForm.password,
+      })
       setCurrent(data)
       const summaryData = await loadSummary()
       setSummary(summaryData)
@@ -207,6 +225,51 @@ export default function Cash() {
   const difference = useMemo(() => {
     return Number(closeForm.countedCashUsd || 0) - Number(closeForm.cashTotalUsd || 0)
   }, [closeForm.cashTotalUsd, closeForm.countedCashUsd])
+
+  const getUserName = (userId) => {
+    const user = users.find((entry) => entry.id === Number(userId))
+    return user?.fullName ?? '--'
+  }
+
+  const downloadClosureCsv = async (sessionId) => {
+    const summaryData = await loadSummary(sessionId)
+    if (!summaryData) return
+    const header = ['SessionId', 'OpenedAt', 'ClosedAt', 'OpeningAmount', 'CashIn', 'CashOut', 'CashExpenses', 'ExpectedCash']
+    const lines = [
+      [
+        summaryData.cashSessionId,
+        summaryData.openedAtUtc,
+        summaryData.closedAtUtc ?? '',
+        summaryData.openingAmountUsd,
+        summaryData.cashMovementsInUsd,
+        summaryData.cashMovementsOutUsd,
+        summaryData.cashExpensesUsd,
+        summaryData.expectedCashUsd,
+      ]
+        .map((value) => `"${String(value).replace(/\"/g, '\"\"')}"`)
+        .join(','),
+    ]
+    const methodHeader = ['PaymentMethod', 'Total']
+    const methodLines = summaryData.methodTotals.map((entry) =>
+      [`"${entry.name.replace(/\"/g, '\"\"')}"`, `"${entry.amountUsd}"`].join(',')
+    )
+    const csv = [
+      header.join(','),
+      ...lines,
+      '',
+      methodHeader.join(','),
+      ...methodLines,
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `cash-closure-${sessionId}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div>
@@ -302,6 +365,7 @@ export default function Cash() {
               <th className="px-4 py-3">Opened</th>
               <th className="px-4 py-3">Closed</th>
               <th className="px-4 py-3">Opening</th>
+              <th className="px-4 py-3">Closed by</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
@@ -320,6 +384,7 @@ export default function Cash() {
                   <td className="px-4 py-4 text-slate-500">{session.openedAtUtc}</td>
                   <td className="px-4 py-4 text-slate-500">{session.closedAtUtc ?? '-'}</td>
                   <td className="px-4 py-4 text-slate-500">${session.openingAmountUsd}</td>
+                  <td className="px-4 py-4 text-slate-500">{getUserName(session.closedByUserId)}</td>
                   <td className="px-4 py-4 text-slate-500">{session.status}</td>
                   <td className="px-4 py-4 text-right">
                     <button
@@ -327,6 +392,12 @@ export default function Cash() {
                       className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
                     >
                       Details
+                    </button>
+                    <button
+                      onClick={() => downloadClosureCsv(session.id)}
+                      className="ml-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      Download CSV
                     </button>
                   </td>
                 </tr>
@@ -388,6 +459,30 @@ export default function Cash() {
               </button>
             </div>
             <form onSubmit={handleOpenSubmit} className="mt-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">User</label>
+                <select
+                  value={openForm.userId}
+                  onChange={(event) => setOpenForm({ ...openForm, userId: event.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">Select user</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.fullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Password</label>
+                <input
+                  type="password"
+                  value={openForm.password}
+                  onChange={(event) => setOpenForm({ ...openForm, password: event.target.value })}
+                  className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Opening amount</label>
                 <input

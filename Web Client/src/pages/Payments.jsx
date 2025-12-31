@@ -50,6 +50,20 @@ export default function Payments() {
     })
   }, [search, payments])
 
+  const getMember = (memberId) => members.find((member) => member.id === Number(memberId))
+
+  const downloadProof = (payment) => {
+    if (!payment?.proofBase64) return
+    const link = document.createElement('a')
+    link.href = payment.proofBase64
+    link.download = `payment-${payment.id}-proof.png`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  }
+
+  const isCashMethod = (name) => String(name || '').toLowerCase() === 'cash'
+
   return (
     <div>
       <PageHeader
@@ -97,31 +111,53 @@ export default function Payments() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
             <tr>
+              <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Payment</th>
-              <th className="px-4 py-3">Method</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Amount</th>
               <th className="px-4 py-3">Paid at</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
                   Loading payments...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
                   No payments found.
                 </td>
               </tr>
             ) : (
               filtered.map((payment) => (
                 <tr key={payment.id} className="hover:bg-slate-50/60">
-                  <td className="px-4 py-4 text-slate-900">#{payment.id}</td>
-                  <td className="px-4 py-4 text-slate-600">{payment.paymentMethodId}</td>
+                  <td className="py-5 pr-3 pl-4 text-sm whitespace-nowrap sm:pl-0">
+                    <div className="flex items-center">
+                      <div className="size-11 shrink-0">
+                        {getMember(payment.memberId)?.photoBase64 ? (
+                          <img
+                            alt={getMember(payment.memberId)?.fullName ?? 'Member'}
+                            src={getMember(payment.memberId)?.photoBase64}
+                            className="size-11 rounded-full object-contain bg-slate-100"
+                          />
+                        ) : (
+                          <div className="size-11 rounded-full bg-slate-100" />
+                        )}
+                      </div>
+                      <div className="ml-4">
+                        <div className="font-medium text-slate-900">{payment.memberName}</div>
+                        <div className="mt-1 text-xs text-slate-500">Subscription #{payment.subscriptionId}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-slate-600">
+                    <div className="text-slate-900">#{payment.id}</div>
+                    <div className="mt-1 text-xs text-slate-500">{payment.paymentMethodName}</div>
+                  </td>
                   <td className="px-4 py-4">
                     <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                       {payment.status}
@@ -129,6 +165,18 @@ export default function Payments() {
                   </td>
                   <td className="px-4 py-4 text-slate-600">${payment.amountUsd}</td>
                   <td className="px-4 py-4 text-slate-500">{payment.paidAtUtc}</td>
+                  <td className="px-4 py-4 text-right">
+                    {!isCashMethod(payment.paymentMethodName) && payment.proofBase64 ? (
+                      <button
+                        onClick={() => downloadProof(payment)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                      >
+                        Download proof
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">--</span>
+                    )}
+                  </td>
                 </tr>
               ))
             )}

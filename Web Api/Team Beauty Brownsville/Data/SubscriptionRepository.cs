@@ -12,6 +12,19 @@ public sealed class SubscriptionRepository : ISubscriptionRepository
         _connectionFactory = connectionFactory;
     }
 
+    public async Task<IReadOnlyList<Subscription>> GetAll()
+    {
+        const string sql = """
+            SELECT Id, MemberId, PlanId, StartDate, EndDate, Status, PriceUsd, PausedAtUtc, CreatedAtUtc, UpdatedAtUtc
+            FROM dbo.Subscriptions
+            ORDER BY Id DESC
+            """;
+
+        using var connection = _connectionFactory.Create();
+        var subs = await connection.QueryAsync<Subscription>(sql);
+        return subs.ToList();
+    }
+
     public async Task<IReadOnlyList<Subscription>> GetByMemberId(int memberId)
     {
         const string sql = """

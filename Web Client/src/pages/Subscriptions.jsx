@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react'
-import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
@@ -17,8 +16,6 @@ const emptyEditForm = {
   endDate: '',
 }
 
-const classNames = (...classes) => classes.filter(Boolean).join(' ')
-
 const toDateInput = (value) => {
   if (!value) return ''
   const date = new Date(value)
@@ -31,9 +28,8 @@ export default function Subscriptions() {
   const [members, setMembers] = useState([])
   const [plans, setPlans] = useState([])
   const [subscriptions, setSubscriptions] = useState([])
-  const [selectedMemberId, setSelectedMemberId] = useState('')
-  const [memberQuery, setMemberQuery] = useState('')
   const [search, setSearch] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -41,6 +37,7 @@ export default function Subscriptions() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState(emptyEditForm)
   const [saving, setSaving] = useState(false)
+  const navigate = useNavigate()
 
   const loadMembers = async () => {
     const { data } = await api.get('/members')
@@ -52,15 +49,11 @@ export default function Subscriptions() {
     setPlans(Array.isArray(data) ? data : [])
   }
 
-  const loadSubscriptions = async (memberId) => {
-    if (!memberId) {
-      setSubscriptions([])
-      return
-    }
+  const loadSubscriptions = async () => {
     setLoading(true)
     setError('')
     try {
-      const { data } = await api.get(`/members/${memberId}/subscriptions`)
+      const { data } = await api.get('/subscriptions')
       setSubscriptions(Array.isArray(data) ? data : [])
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to load subscriptions.')
@@ -72,25 +65,29 @@ export default function Subscriptions() {
   useEffect(() => {
     loadMembers()
     loadPlans()
+    loadSubscriptions()
   }, [])
 
-  useEffect(() => {
-    if (selectedMemberId) {
-      setSubscriptions([])
-      loadSubscriptions(selectedMemberId)
-    }
-  }, [selectedMemberId])
+  const memberMap = useMemo(() => {
+    const map = new Map()
+    members.forEach((member) => map.set(member.id, member))
+    return map
+  }, [members])
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return subscriptions
-    return subscriptions.filter((sub) => sub.status?.toLowerCase().includes(term))
-  }, [search, subscriptions])
+  const planMap = useMemo(() => {
+    const map = new Map()
+    plans.forEach((plan) => map.set(plan.id, plan))
+    return map
+  }, [plans])
 
-  const filteredMembers =
-    memberQuery.trim() === ''
-      ? members
-      : members.filter((member) => member.fullName?.toLowerCase().includes(memberQuery.trim().toLowerCase()))
+  const subscriptionsByMember = useMemo(() => {
+    const map = new Map()
+    subscriptions.forEach((sub) => {
+      if (!map.has(sub.memberId)) map.set(sub.memberId, [])
+      map.get(sub.memberId).push(sub)
+    })
+    return map
+  }, [subscriptions])
 
   const subscriptionStatusClass = (status) => {
     const normalized = String(status || '').toLowerCase()
@@ -101,18 +98,46 @@ export default function Subscriptions() {
     return 'bg-slate-100 text-slate-600'
   }
 
-  const selectedMember = members.find((member) => String(member.id) === selectedMemberId) ?? null
+  const getLatestSubscription = (memberId) => {
+    const list = subscriptionsByMember.get(memberId) ?? []
+    if (list.length === 0) return null
+    return list
+      .slice()
+      .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0]
+  }
 
-  const activeSubscription = subscriptions.find(
-    (sub) => String(sub.status ?? '').toLowerCase() === 'active'
-  )
+  const getActiveSubscription = (memberId) => {
+    const list = subscriptionsByMember.get(memberId) ?? []
+    return list.find((sub) => String(sub.status || '').toLowerCase() === 'active') ?? null
+  }
 
-  const openCreate = () => {
+  const filteredMembers = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return members
+    return members.filter((member) => member.fullName?.toLowerCase().includes(term))
+  }, [members, search])
+
+  const filteredSubscriptions = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return subscriptions
+    return subscriptions.filter((sub) => {
+      const member = memberMap.get(sub.memberId)
+      const plan = planMap.get(sub.planId)
+      return (
+        String(sub.status || '').toLowerCase().includes(term) ||
+        member?.fullName?.toLowerCase().includes(term) ||
+        plan?.name?.toLowerCase().includes(term)
+      )
+    })
+  }, [subscriptions, search, memberMap, planMap])
+
+  const openCreate = (memberId) => {
+    const activeSubscription = getActiveSubscription(memberId)
     if (activeSubscription) {
       setError('This member already has an active subscription.')
       return
     }
-    setForm({ ...emptyForm, memberId: selectedMemberId || '' })
+    setForm({ ...emptyForm, memberId: String(memberId) })
     setModalOpen(true)
   }
 
@@ -156,7 +181,7 @@ export default function Subscriptions() {
       }
 
       await api.post(`/members/${form.memberId}/subscriptions`, payload)
-      await loadSubscriptions(form.memberId)
+      await loadSubscriptions()
       closeModal()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to create subscription.')
@@ -176,7 +201,7 @@ export default function Subscriptions() {
         startDate: editForm.startDate || null,
         endDate: editForm.endDate || null,
       })
-      await loadSubscriptions(selectedMemberId)
+      await loadSubscriptions()
       closeEditModal()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to update subscription.')
@@ -190,7 +215,7 @@ export default function Subscriptions() {
     setError('')
     try {
       await api.put(`/subscriptions/${subscriptionId}`, { status: 'Cancelled' })
-      await loadSubscriptions(selectedMemberId)
+      await loadSubscriptions()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to cancel subscription.')
     }
@@ -199,7 +224,7 @@ export default function Subscriptions() {
   const handlePause = async (subscriptionId) => {
     try {
       await api.post(`/subscriptions/${subscriptionId}/pause`)
-      await loadSubscriptions(selectedMemberId)
+      await loadSubscriptions()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to pause subscription.')
     }
@@ -208,16 +233,17 @@ export default function Subscriptions() {
   const handleResume = async (subscriptionId) => {
     try {
       await api.post(`/subscriptions/${subscriptionId}/resume`)
-      await loadSubscriptions(selectedMemberId)
+      await loadSubscriptions()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to resume subscription.')
     }
   }
 
-  const handleRenew = async (subscriptionId) => {
+  const handleRenew = async (subscription) => {
     try {
-      await api.post(`/subscriptions/${subscriptionId}/renew`, { startDate: null })
-      await loadSubscriptions(selectedMemberId)
+      const { data } = await api.post(`/subscriptions/${subscription.id}/renew`, { startDate: null })
+      await loadSubscriptions()
+      navigate(`/payments/new?memberId=${data.memberId}&subscriptionId=${data.id}&amount=${data.priceUsd}`)
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to renew subscription.')
     }
@@ -231,80 +257,24 @@ export default function Subscriptions() {
         description="Pause, resume, renew, or cancel memberships."
         actions={
           <button
-            onClick={openCreate}
-            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            disabled={Boolean(activeSubscription)}
+            onClick={() => setShowAll((prev) => !prev)}
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
           >
-            New subscription
+            {showAll ? 'Show members' : 'Show all subscriptions'}
           </button>
         }
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
-        <div className="w-full max-w-xs">
-          <Combobox
-            value={selectedMember}
-            onChange={(member) => {
-              setSelectedMemberId(member ? String(member.id) : '')
-              if (!member) {
-                setSubscriptions([])
-              }
-              setMemberQuery('')
-            }}
-          >
-            <div className="relative">
-              <ComboboxInput
-                className="h-10 w-full rounded-full border border-slate-200 bg-white py-2 pr-10 pl-10 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                displayValue={(member) => member?.fullName ?? ''}
-                placeholder="Search member..."
-                onChange={(event) => setMemberQuery(event.target.value)}
-              />
-              <MagnifyingGlassIcon
-                className="pointer-events-none absolute left-3 top-2.5 size-5 text-slate-400"
-                aria-hidden="true"
-              />
-            </div>
-            <ComboboxOptions className="mt-2 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white py-2 text-sm shadow-lg">
-              {selectedMember ? (
-                <ComboboxOption
-                  value={null}
-                  className={({ active }) =>
-                    classNames(
-                      'cursor-default select-none px-4 py-2 text-slate-500',
-                      active && 'bg-slate-100 text-slate-900'
-                    )
-                  }
-                >
-                  Clear selection
-                </ComboboxOption>
-              ) : null}
-              {filteredMembers.length === 0 ? (
-                <div className="px-4 py-2 text-slate-500">No members found.</div>
-              ) : (
-                filteredMembers.map((member) => (
-                  <ComboboxOption
-                    key={member.id}
-                    value={member}
-                    className={({ active }) =>
-                      classNames(
-                        'cursor-default select-none px-4 py-2 text-slate-700',
-                        active && 'bg-slate-100 text-slate-900'
-                      )
-                    }
-                  >
-                    {member.fullName}
-                  </ComboboxOption>
-                ))
-              )}
-            </ComboboxOptions>
-          </Combobox>
-        </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Filter by status..."
-          className="h-10 w-full max-w-xs rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+          placeholder={showAll ? 'Filter by member, plan, or status...' : 'Search members...'}
+          className="h-10 w-full max-w-sm rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
         />
+        <div className="text-sm text-slate-500">
+          {showAll ? filteredSubscriptions.length : filteredMembers.length} records
+        </div>
       </div>
 
       {error ? (
@@ -313,16 +283,11 @@ export default function Subscriptions() {
         </div>
       ) : null}
 
-      {activeSubscription ? (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          This member already has an active subscription. Pause or expire it before creating another.
-        </div>
-      ) : null}
-
       <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
             <tr>
+              <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Plan</th>
               <th className="px-4 py-3">Dates</th>
               <th className="px-4 py-3">Status</th>
@@ -333,71 +298,196 @@ export default function Subscriptions() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
                   Loading subscriptions...
                 </td>
               </tr>
-            ) : filtered.length === 0 ? (
+            ) : showAll ? (
+              filteredSubscriptions.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
+                    No subscriptions found.
+                  </td>
+                </tr>
+              ) : (
+                filteredSubscriptions.map((sub) => {
+                  const member = memberMap.get(sub.memberId)
+                  const plan = planMap.get(sub.planId)
+                  return (
+                    <tr key={sub.id} className="hover:bg-slate-50/60">
+                      <td className="py-5 pr-3 pl-4 text-sm whitespace-nowrap sm:pl-0">
+                        <div className="flex items-center">
+                          <div className="size-11 shrink-0">
+                            {member?.photoBase64 ? (
+                              <img
+                                alt={member.fullName}
+                                src={member.photoBase64}
+                                className="size-11 rounded-full object-contain bg-slate-100"
+                              />
+                            ) : (
+                              <div className="size-11 rounded-full bg-slate-100" />
+                            )}
+                          </div>
+                          <div className="ml-4">
+                            <div className="font-medium text-slate-900">{member?.fullName ?? '--'}</div>
+                            <div className="mt-1 text-xs text-slate-500">Member #{sub.memberId}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-slate-600">{plan?.name ?? `Plan #${sub.planId}`}</td>
+                      <td className="px-4 py-4 text-slate-600">{sub.startDate} - {sub.endDate}</td>
+                      <td className="px-4 py-4">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${subscriptionStatusClass(sub.status)}`}>
+                          {sub.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-slate-600">${sub.priceUsd}</td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => openEdit(sub)}
+                            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                          >
+                            Edit
+                          </button>
+                          {sub.status === 'Active' ? (
+                            <button
+                              onClick={() => handlePause(sub.id)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                            >
+                              Pause
+                            </button>
+                          ) : null}
+                          {sub.status === 'Paused' ? (
+                            <button
+                              onClick={() => handleResume(sub.id)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                            >
+                              Resume
+                            </button>
+                          ) : null}
+                          <button
+                            onClick={() => handleRenew(sub)}
+                            className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-600"
+                          >
+                            Renew
+                          </button>
+                          {sub.status !== 'Cancelled' ? (
+                            <button
+                              onClick={() => handleCancel(sub.id)}
+                              className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600"
+                            >
+                              Cancel
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )
+            ) : filteredMembers.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
-                  No subscriptions found.
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
+                  No members found.
                 </td>
               </tr>
             ) : (
-              filtered.map((sub) => (
-                <tr key={sub.id} className="hover:bg-slate-50/60">
-                  <td className="px-4 py-4 text-slate-900">Plan #{sub.planId}</td>
-                  <td className="px-4 py-4 text-slate-600">
-                    {sub.startDate} → {sub.endDate}
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${subscriptionStatusClass(sub.status)}`}>
-                      {sub.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-slate-600">${sub.priceUsd}</td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(sub)}
-                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                      >
-                        Edit
-                      </button>
-                      {sub.status === 'Active' ? (
+              filteredMembers.map((member) => {
+                const activeSubscription = getActiveSubscription(member.id)
+                const latestSubscription = activeSubscription ?? getLatestSubscription(member.id)
+                const plan = latestSubscription ? planMap.get(latestSubscription.planId) : null
+                return (
+                  <tr key={member.id} className="hover:bg-slate-50/60">
+                    <td className="py-5 pr-3 pl-4 text-sm whitespace-nowrap sm:pl-0">
+                      <div className="flex items-center">
+                        <div className="size-11 shrink-0">
+                          {member.photoBase64 ? (
+                            <img
+                              alt={member.fullName}
+                              src={member.photoBase64}
+                              className="size-11 rounded-full object-contain bg-slate-100"
+                            />
+                          ) : (
+                            <div className="size-11 rounded-full bg-slate-100" />
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          <div className="font-medium text-slate-900">{member.fullName}</div>
+                          <div className="mt-1 text-xs text-slate-500">{member.email ?? 'No email'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">{plan?.name ?? '--'}</td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {latestSubscription ? `${latestSubscription.startDate} - ${latestSubscription.endDate}` : '--'}
+                    </td>
+                    <td className="px-4 py-4">
+                      {latestSubscription ? (
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${subscriptionStatusClass(latestSubscription.status)}`}>
+                          {latestSubscription.status}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                          None
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">{latestSubscription ? `$${latestSubscription.priceUsd}` : '--'}</td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => handlePause(sub.id)}
-                          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                          onClick={() => openCreate(member.id)}
+                          disabled={Boolean(activeSubscription)}
+                          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-50"
                         >
-                          Pause
+                          New subscription
                         </button>
-                      ) : null}
-                      {sub.status === 'Paused' ? (
-                        <button
-                          onClick={() => handleResume(sub.id)}
-                          className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                        >
-                          Resume
-                        </button>
-                      ) : null}
-                      <button
-                        onClick={() => handleRenew(sub.id)}
-                        className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
-                      >
-                        Renew
-                      </button>
-                      {sub.status !== 'Cancelled' ? (
-                        <button
-                          onClick={() => handleCancel(sub.id)}
-                          className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                        {latestSubscription ? (
+                          <>
+                            <button
+                              onClick={() => openEdit(latestSubscription)}
+                              className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                            >
+                              Edit
+                            </button>
+                            {latestSubscription.status === 'Active' ? (
+                              <button
+                                onClick={() => handlePause(latestSubscription.id)}
+                                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                              >
+                                Pause
+                              </button>
+                            ) : null}
+                            {latestSubscription.status === 'Paused' ? (
+                              <button
+                                onClick={() => handleResume(latestSubscription.id)}
+                                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                              >
+                                Resume
+                              </button>
+                            ) : null}
+                            <button
+                              onClick={() => handleRenew(latestSubscription)}
+                              className="rounded-full border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-600"
+                            >
+                              Renew
+                            </button>
+                            {latestSubscription.status !== 'Cancelled' ? (
+                              <button
+                                onClick={() => handleCancel(latestSubscription.id)}
+                                className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600"
+                              >
+                                Cancel
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
@@ -550,3 +640,5 @@ export default function Subscriptions() {
     </div>
   )
 }
+
+

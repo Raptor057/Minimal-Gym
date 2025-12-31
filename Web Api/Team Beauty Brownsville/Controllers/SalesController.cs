@@ -263,7 +263,8 @@ public sealed class SalesController : ControllerBase
             AmountUsd = request.AmountUsd,
             PaidAtUtc = request.PaidAtUtc ?? DateTime.UtcNow,
             Reference = request.Reference?.Trim(),
-            ProofBase64 = string.IsNullOrWhiteSpace(request.ProofBase64) ? null : request.ProofBase64.Trim()
+            ProofBase64 = string.IsNullOrWhiteSpace(request.ProofBase64) ? null : request.ProofBase64.Trim(),
+            CreatedByUserId = GetUserId()
         };
 
         await _sales.CreateSalePayment(payment);
@@ -333,7 +334,8 @@ public sealed class SalesController : ControllerBase
                 AmountUsd = entry.AmountUsd,
                 PaidAtUtc = entry.PaidAtUtc ?? DateTime.UtcNow,
                 Reference = entry.Reference?.Trim(),
-                ProofBase64 = string.IsNullOrWhiteSpace(entry.ProofBase64) ? null : entry.ProofBase64.Trim()
+                ProofBase64 = string.IsNullOrWhiteSpace(entry.ProofBase64) ? null : entry.ProofBase64.Trim(),
+                CreatedByUserId = GetUserId()
             });
         }
 
@@ -399,7 +401,8 @@ public sealed class SalesController : ControllerBase
                     PaymentMethodId = entry.Key,
                     AmountUsd = -entry.Value,
                     PaidAtUtc = DateTime.UtcNow,
-                    Reference = "Refund"
+                    Reference = "Refund",
+                    CreatedByUserId = GetUserId()
                 };
                 await _sales.CreateSalePayment(refundPayment);
             }
@@ -450,8 +453,12 @@ public sealed class SalesController : ControllerBase
         return new SalePaymentResponse(
             payment.Id,
             payment.PaymentMethodId,
+            payment.PaymentMethodName ?? string.Empty,
             payment.AmountUsd,
             payment.PaidAtUtc,
-            payment.Reference);
+            payment.Reference,
+            payment.ProofBase64,
+            payment.CreatedByUserId,
+            payment.CreatedByUserName);
     }
 }

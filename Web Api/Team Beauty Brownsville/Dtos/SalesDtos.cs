@@ -43,9 +43,13 @@ public sealed record SaleItemResponse(
 public sealed record SalePaymentResponse(
     int Id,
     int PaymentMethodId,
+    string PaymentMethodName,
     decimal AmountUsd,
     DateTime PaidAtUtc,
-    string? Reference
+    string? Reference,
+    string? ProofBase64,
+    int? CreatedByUserId,
+    string? CreatedByUserName
 );
 
 public sealed record SaleResponse(

@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
@@ -17,12 +17,15 @@ const emptyForm = {
 export default function PaymentsEditor() {
   const [members, setMembers] = useState([])
   const [subscriptions, setSubscriptions] = useState([])
+  const [plans, setPlans] = useState([])
   const [methods, setMethods] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [prefill, setPrefill] = useState({ memberId: '', subscriptionId: '', amountUsd: '' })
   const navigate = useNavigate()
+  const location = useLocation()
 
   const loadMembers = async () => {
     const { data } = await api.get('/members')
@@ -34,21 +37,75 @@ export default function PaymentsEditor() {
     setMethods(Array.isArray(data) ? data : [])
   }
 
+  const loadPlans = async () => {
+    const { data } = await api.get('/membership-plans')
+    setPlans(Array.isArray(data) ? data : [])
+  }
+
+  const selectSubscription = (subscription, amountOverride) => {
+    if (!subscription) {
+      setForm((prev) => ({ ...prev, subscriptionId: '', amountUsd: '' }))
+      return
+    }
+    setForm((prev) => ({
+      ...prev,
+      subscriptionId: String(subscription.id),
+      amountUsd: amountOverride || String(subscription.priceUsd ?? ''),
+    }))
+  }
+
   const loadSubscriptions = async (memberId) => {
     if (!memberId) {
       setSubscriptions([])
+      setForm((prev) => ({ ...prev, subscriptionId: '', amountUsd: '' }))
       return
     }
     const { data } = await api.get(`/members/${memberId}/subscriptions`)
-    setSubscriptions(Array.isArray(data) ? data : [])
+    const list = Array.isArray(data) ? data : []
+    setSubscriptions(list)
+
+    const normalizedPrefill = prefill.subscriptionId ? Number(prefill.subscriptionId) : null
+    const selected =
+      (normalizedPrefill && list.find((sub) => sub.id === normalizedPrefill)) ||
+      list.find((sub) => String(sub.status || '').toLowerCase() === 'active') ||
+      list
+        .slice()
+        .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0]
+
+    selectSubscription(selected, prefill.amountUsd ? String(prefill.amountUsd) : '')
   }
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([loadMembers(), loadMethods()])
+    Promise.all([loadMembers(), loadMethods(), loadPlans()])
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const memberId = params.get('memberId') ?? ''
+    const subscriptionId = params.get('subscriptionId') ?? ''
+    const amountUsd = params.get('amount') ?? ''
+    if (memberId || subscriptionId || amountUsd) {
+      setPrefill({ memberId, subscriptionId, amountUsd })
+      setForm((prev) => ({ ...prev, memberId }))
+      if (memberId) {
+        loadSubscriptions(memberId)
+      }
+    }
+  }, [location.search])
+
+  const selectedSubscription = useMemo(() => {
+    if (!form.subscriptionId) return null
+    return subscriptions.find((sub) => String(sub.id) === String(form.subscriptionId)) ?? null
+  }, [form.subscriptionId, subscriptions])
+
+  const selectedPlanName = useMemo(() => {
+    if (!selectedSubscription) return '--'
+    const plan = plans.find((entry) => entry.id === selectedSubscription.planId)
+    return plan?.name ?? `Plan #${selectedSubscription.planId}`
+  }, [plans, selectedSubscription])
 
   const handleSave = async (event) => {
     event.preventDefault()
@@ -124,7 +181,7 @@ export default function PaymentsEditor() {
               <select
                 value={form.memberId}
                 onChange={(event) => {
-                  setForm({ ...form, memberId: event.target.value, subscriptionId: '' })
+                  setForm({ ...form, memberId: event.target.value, subscriptionId: '', amountUsd: '' })
                   loadSubscriptions(event.target.value)
                 }}
                 className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
@@ -141,7 +198,11 @@ export default function PaymentsEditor() {
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Subscription</label>
               <select
                 value={form.subscriptionId}
-                onChange={(event) => setForm({ ...form, subscriptionId: event.target.value })}
+                onChange={(event) => {
+                  const nextId = event.target.value
+                  const nextSubscription = subscriptions.find((sub) => String(sub.id) === String(nextId))
+                  selectSubscription(nextSubscription)
+                }}
                 className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="">Select subscription</option>
@@ -151,6 +212,10 @@ export default function PaymentsEditor() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <div>Plan: <span className="font-semibold text-slate-900">{selectedPlanName}</span></div>
+              <div>Status: <span className="font-semibold text-slate-900">{selectedSubscription?.status ?? '--'}</span></div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -260,3 +325,20 @@ export default function PaymentsEditor() {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

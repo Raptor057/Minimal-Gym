@@ -4,6 +4,7 @@ namespace Team_Beauty_Brownsville.Data;
 
 public interface ISubscriptionRepository
 {
+    Task<IReadOnlyList<Subscription>> GetAll();
     Task<IReadOnlyList<Subscription>> GetByMemberId(int memberId);
     Task<Subscription?> GetById(int id);
     Task<int> Create(Subscription subscription);

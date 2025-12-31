@@ -14,6 +14,7 @@ export default function Audit() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [detailsRow, setDetailsRow] = useState(null)
 
   const loadAudit = async () => {
     setLoading(true)
@@ -36,6 +37,44 @@ export default function Audit() {
     }
   }
 
+  const parseData = (value) => {
+    if (!value) return null
+    if (typeof value === 'object') return value
+    try {
+      return JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+
+  const downloadCsv = () => {
+    if (rows.length === 0) return
+    const header = ['Entity', 'Action', 'EntityId', 'UserId', 'CreatedAt', 'Data']
+    const lines = rows.map((row) => {
+      const data = row.dataJson ? row.dataJson.replace(/\\s+/g, ' ').trim() : ''
+      return [
+        row.entityName ?? '',
+        row.action ?? '',
+        row.entityId ?? '',
+        row.userId ?? '',
+        row.createdAtUtc ?? '',
+        data,
+      ]
+        .map((value) => `"${String(value).replace(/\"/g, '\"\"')}"`)
+        .join(',')
+    })
+    const csv = [header.join(','), ...lines].join('\\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'audit-log.csv'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <PageHeader
@@ -43,9 +82,17 @@ export default function Audit() {
         title="Log general"
         description="Track every change with timestamps and users."
         actions={
-          <button onClick={loadAudit} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={loadAudit} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+              Refresh
+            </button>
+            <button
+              onClick={downloadCsv}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+            >
+              Download CSV
+            </button>
+          </div>
         }
       />
 
@@ -121,7 +168,7 @@ export default function Audit() {
               <th className="px-4 py-3">Entity Id</th>
               <th className="px-4 py-3">User</th>
               <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3">Data</th>
+              <th className="px-4 py-3 text-right">Data</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -145,13 +192,60 @@ export default function Audit() {
                   <td className="px-4 py-4 text-slate-500">{row.entityId ?? '-'}</td>
                   <td className="px-4 py-4 text-slate-500">{row.userId ?? '-'}</td>
                   <td className="px-4 py-4 text-slate-500">{row.createdAtUtc}</td>
-                  <td className="px-4 py-4 text-xs text-slate-400">{row.dataJson ?? '-'}</td>
+                  <td className="px-4 py-4 text-right">
+                    <button
+                      onClick={() => setDetailsRow(row)}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      Details
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {detailsRow ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
+          <div className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display text-xl text-slate-900">Audit details</h3>
+                <p className="mt-1 text-sm text-slate-500">Readable data snapshot.</p>
+              </div>
+              <button onClick={() => setDetailsRow(null)} className="text-sm text-slate-500 hover:text-slate-900">
+                Close
+              </button>
+            </div>
+            <div className="mt-6 space-y-2 text-sm text-slate-600">
+              <div><span className="font-semibold text-slate-900">Entity:</span> {detailsRow.entityName}</div>
+              <div><span className="font-semibold text-slate-900">Action:</span> {detailsRow.action}</div>
+              <div><span className="font-semibold text-slate-900">Entity Id:</span> {detailsRow.entityId ?? '--'}</div>
+              <div><span className="font-semibold text-slate-900">User:</span> {detailsRow.userId ?? '--'}</div>
+              <div><span className="font-semibold text-slate-900">Created:</span> {detailsRow.createdAtUtc}</div>
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              {(() => {
+                const parsed = parseData(detailsRow.dataJson)
+                if (!parsed) {
+                  return <div>{detailsRow.dataJson ?? '--'}</div>
+                }
+                return (
+                  <ul className="space-y-2">
+                    {Object.entries(parsed).map(([key, value]) => (
+                      <li key={key}>
+                        <span className="font-semibold text-slate-900">{key}:</span> {String(value)}
+                      </li>
+                    ))}
+                  </ul>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

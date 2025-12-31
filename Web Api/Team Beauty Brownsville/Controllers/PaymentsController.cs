@@ -95,7 +95,8 @@ public sealed class PaymentsController : ControllerBase
             Reference = request.Reference?.Trim(),
             ProofBase64 = string.IsNullOrWhiteSpace(request.ProofBase64) ? null : request.ProofBase64.Trim(),
             Status = "Completed",
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedByUserId = GetUserId()
         };
 
         var id = await _payments.Create(payment);
@@ -115,11 +116,17 @@ public sealed class PaymentsController : ControllerBase
         return new PaymentResponse(
             payment.Id,
             payment.SubscriptionId,
+            payment.MemberId,
+            payment.MemberName ?? string.Empty,
             payment.PaymentMethodId,
+            payment.PaymentMethodName ?? string.Empty,
             payment.AmountUsd,
             payment.CurrencyCode,
             payment.PaidAtUtc,
             payment.Reference,
-            payment.Status);
+            payment.ProofBase64,
+            payment.Status,
+            payment.CreatedByUserId,
+            payment.CreatedByUserName);
     }
 }

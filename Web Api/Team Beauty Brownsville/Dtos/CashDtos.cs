@@ -1,6 +1,10 @@
 namespace Team_Beauty_Brownsville.Dtos;
 
-public sealed record CashOpenRequest(decimal OpeningAmountUsd);
+public sealed record CashOpenRequest(
+    decimal OpeningAmountUsd,
+    int UserId,
+    string Password
+);
 
 public sealed record CashMovementCreateRequest(
     int CashSessionId,

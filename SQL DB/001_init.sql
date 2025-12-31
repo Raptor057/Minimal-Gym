@@ -263,6 +263,7 @@ BEGIN
     ProofBase64        NVARCHAR(MAX) NULL,
     Status             NVARCHAR(20) NOT NULL CONSTRAINT DF_Payments_Status DEFAULT ('Completed'),
     CreatedAtUtc       DATETIME2(0) NOT NULL CONSTRAINT DF_Payments_CreatedAtUtc DEFAULT (SYSUTCDATETIME()),
+    CreatedByUserId    INT NULL,
     CONSTRAINT CK_Payments_Status CHECK (Status IN ('Completed','Voided')),
     CONSTRAINT FK_Payments_Subscriptions FOREIGN KEY (SubscriptionId) REFERENCES dbo.Subscriptions(Id),
     CONSTRAINT FK_Payments_PaymentMethods FOREIGN KEY (PaymentMethodId) REFERENCES dbo.PaymentMethods(Id)
@@ -273,6 +274,19 @@ GO
 IF COL_LENGTH('dbo.Payments', 'ProofBase64') IS NULL
 BEGIN
   ALTER TABLE dbo.Payments ADD ProofBase64 NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'CreatedByUserId') IS NULL
+BEGIN
+  ALTER TABLE dbo.Payments ADD CreatedByUserId INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Payments_Users')
+BEGIN
+  ALTER TABLE dbo.Payments
+  ADD CONSTRAINT FK_Payments_Users FOREIGN KEY (CreatedByUserId) REFERENCES dbo.Users(Id);
 END
 GO
 
@@ -386,6 +400,7 @@ BEGIN
     PaidAtUtc          DATETIME2(0) NOT NULL,
     Reference          NVARCHAR(100) NULL,
     ProofBase64        NVARCHAR(MAX) NULL,
+    CreatedByUserId    INT NULL,
     CONSTRAINT FK_SalePayments_Sales FOREIGN KEY (SaleId) REFERENCES dbo.Sales(Id),
     CONSTRAINT FK_SalePayments_PaymentMethods FOREIGN KEY (PaymentMethodId) REFERENCES dbo.PaymentMethods(Id)
   );
@@ -395,6 +410,19 @@ GO
 IF COL_LENGTH('dbo.SalePayments', 'ProofBase64') IS NULL
 BEGIN
   ALTER TABLE dbo.SalePayments ADD ProofBase64 NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.SalePayments', 'CreatedByUserId') IS NULL
+BEGIN
+  ALTER TABLE dbo.SalePayments ADD CreatedByUserId INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_SalePayments_Users')
+BEGIN
+  ALTER TABLE dbo.SalePayments
+  ADD CONSTRAINT FK_SalePayments_Users FOREIGN KEY (CreatedByUserId) REFERENCES dbo.Users(Id);
 END
 GO
 
