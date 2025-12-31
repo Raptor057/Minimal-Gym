@@ -171,14 +171,43 @@ BEGIN
     Id              INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     Description     NVARCHAR(200) NOT NULL,
     AmountUsd       DECIMAL(19,4) NOT NULL,
+    PaymentMethodId INT NULL,
     ExpenseDateUtc  DATETIME2(0) NOT NULL,
     Notes           NVARCHAR(300) NULL,
     CreatedAtUtc    DATETIME2(0) NOT NULL CONSTRAINT DF_Expenses_CreatedAtUtc DEFAULT (SYSUTCDATETIME()),
     CreatedByUserId INT NULL,
+    ProofBase64     NVARCHAR(MAX) NULL,
+    CashSessionId   INT NULL,
     CONSTRAINT FK_Expenses_Users FOREIGN KEY (CreatedByUserId) REFERENCES dbo.Users(Id)
   );
 END
 GO
+
+IF COL_LENGTH('dbo.Expenses', 'PaymentMethodId') IS NULL
+BEGIN
+  ALTER TABLE dbo.Expenses ADD PaymentMethodId INT NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Expenses', 'ProofBase64') IS NULL
+BEGIN
+  ALTER TABLE dbo.Expenses ADD ProofBase64 NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Expenses', 'CashSessionId') IS NULL
+BEGIN
+  ALTER TABLE dbo.Expenses ADD CashSessionId INT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Expenses_PaymentMethods')
+BEGIN
+  ALTER TABLE dbo.Expenses
+  ADD CONSTRAINT FK_Expenses_PaymentMethods FOREIGN KEY (PaymentMethodId) REFERENCES dbo.PaymentMethods(Id);
+END
+GO
+
 
 IF OBJECT_ID(N'dbo.MembershipPlans', N'U') IS NULL
 BEGIN
@@ -231,12 +260,19 @@ BEGIN
     CurrencyCode       CHAR(3) NOT NULL CONSTRAINT DF_Payments_CurrencyCode DEFAULT ('USD'),
     PaidAtUtc          DATETIME2(0) NOT NULL,
     Reference          NVARCHAR(100) NULL,
+    ProofBase64        NVARCHAR(MAX) NULL,
     Status             NVARCHAR(20) NOT NULL CONSTRAINT DF_Payments_Status DEFAULT ('Completed'),
     CreatedAtUtc       DATETIME2(0) NOT NULL CONSTRAINT DF_Payments_CreatedAtUtc DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT CK_Payments_Status CHECK (Status IN ('Completed','Voided')),
     CONSTRAINT FK_Payments_Subscriptions FOREIGN KEY (SubscriptionId) REFERENCES dbo.Subscriptions(Id),
     CONSTRAINT FK_Payments_PaymentMethods FOREIGN KEY (PaymentMethodId) REFERENCES dbo.PaymentMethods(Id)
   );
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'ProofBase64') IS NULL
+BEGIN
+  ALTER TABLE dbo.Payments ADD ProofBase64 NVARCHAR(MAX) NULL;
 END
 GO
 
@@ -293,6 +329,13 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Expenses_CashSessions')
+BEGIN
+  ALTER TABLE dbo.Expenses
+  ADD CONSTRAINT FK_Expenses_CashSessions FOREIGN KEY (CashSessionId) REFERENCES dbo.CashSessions(Id);
+END
+GO
+
 IF OBJECT_ID(N'dbo.Sales', N'U') IS NULL
 BEGIN
   CREATE TABLE dbo.Sales (
@@ -342,9 +385,16 @@ BEGIN
     AmountUsd          DECIMAL(19,4) NOT NULL,
     PaidAtUtc          DATETIME2(0) NOT NULL,
     Reference          NVARCHAR(100) NULL,
+    ProofBase64        NVARCHAR(MAX) NULL,
     CONSTRAINT FK_SalePayments_Sales FOREIGN KEY (SaleId) REFERENCES dbo.Sales(Id),
     CONSTRAINT FK_SalePayments_PaymentMethods FOREIGN KEY (PaymentMethodId) REFERENCES dbo.PaymentMethods(Id)
   );
+END
+GO
+
+IF COL_LENGTH('dbo.SalePayments', 'ProofBase64') IS NULL
+BEGIN
+  ALTER TABLE dbo.SalePayments ADD ProofBase64 NVARCHAR(MAX) NULL;
 END
 GO
 

@@ -9,6 +9,7 @@ public sealed class Payment
     public string CurrencyCode { get; set; } = "USD";
     public DateTime PaidAtUtc { get; set; }
     public string? Reference { get; set; }
+    public string? ProofBase64 { get; set; }
     public string Status { get; set; } = "Completed";
     public DateTime CreatedAtUtc { get; set; }
 }

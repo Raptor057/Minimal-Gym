@@ -22,7 +22,12 @@ public sealed record SalePaymentCreateRequest(
     int PaymentMethodId,
     decimal AmountUsd,
     DateTime? PaidAtUtc,
-    string? Reference
+    string? Reference,
+    string? ProofBase64
+);
+
+public sealed record SalePaymentBatchCreateRequest(
+    IReadOnlyList<SalePaymentCreateRequest> Payments
 );
 
 public sealed record SaleItemResponse(

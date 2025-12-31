@@ -19,11 +19,13 @@ public sealed class CashController : ControllerBase
 
     private readonly ICashRepository _cash;
     private readonly IAuditService _audit;
+    private readonly ICashBalanceService _balances;
 
-    public CashController(ICashRepository cash, IAuditService audit)
+    public CashController(ICashRepository cash, IAuditService audit, ICashBalanceService balances)
     {
         _cash = cash;
         _audit = audit;
+        _balances = balances;
     }
 
     [HttpPost("cash/open")]
@@ -86,6 +88,36 @@ public sealed class CashController : ControllerBase
             return BadRequest("AmountUsd must be greater than zero.");
         }
 
+        var openSession = await _cash.GetOpenSession();
+        if (openSession is null)
+        {
+            return BadRequest("No open cash session. Open cash before adding movements.");
+        }
+
+        if (openSession.Id != request.CashSessionId)
+        {
+            return BadRequest("CashSessionId does not match the open session.");
+        }
+
+        if (string.Equals(request.MovementType, "Out", StringComparison.OrdinalIgnoreCase))
+        {
+            var snapshot = await _balances.GetOpenSnapshot();
+            if (snapshot is null || snapshot.CashMethodId is null)
+            {
+                return BadRequest("Cash method is not configured.");
+            }
+
+            if (!snapshot.MethodBalances.TryGetValue(snapshot.CashMethodId.Value, out var cashBalance))
+            {
+                cashBalance = 0m;
+            }
+
+            if (cashBalance - request.AmountUsd < 0)
+            {
+                return BadRequest("Cash balance cannot be negative.");
+            }
+        }
+
         var movement = new CashMovement
         {
             CashSessionId = request.CashSessionId,
@@ -142,6 +174,21 @@ public sealed class CashController : ControllerBase
         return Ok(list.Select(ToResponse));
     }
 
+    [HttpGet("cash/summary")]
+    public async Task<ActionResult<CashSessionSummaryResponse>> GetSummary([FromQuery] int? cashSessionId)
+    {
+        CashBalanceSnapshot? snapshot = cashSessionId is null
+            ? await _balances.GetOpenSnapshot()
+            : await _balances.GetSnapshot(cashSessionId.Value);
+
+        if (snapshot is null)
+        {
+            return NotFound("Cash session not found.");
+        }
+
+        return Ok(ToSummaryResponse(snapshot));
+    }
+
     private int? GetUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
@@ -170,5 +217,26 @@ public sealed class CashController : ControllerBase
             movement.Notes,
             movement.CreatedAtUtc,
             movement.CreatedByUserId);
+    }
+
+    private static CashSessionSummaryResponse ToSummaryResponse(CashBalanceSnapshot snapshot)
+    {
+        var methodTotals = snapshot.Methods
+            .Select(method => new CashMethodTotalResponse(
+                method.Id,
+                method.Name,
+                snapshot.PaymentTotals.TryGetValue(method.Id, out var amount) ? amount : 0m))
+            .ToList();
+
+        return new CashSessionSummaryResponse(
+            snapshot.Session.Id,
+            snapshot.Session.OpenedAtUtc,
+            snapshot.Session.ClosedAtUtc,
+            snapshot.Session.OpeningAmountUsd,
+            snapshot.CashMovementsInUsd,
+            snapshot.CashMovementsOutUsd,
+            snapshot.CashExpensesUsd,
+            snapshot.ExpectedCashUsd,
+            methodTotals);
     }
 }

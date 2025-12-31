@@ -5,6 +5,7 @@ import PageHeader from '../ui/PageHeader.jsx'
 
 export default function Expenses() {
   const [expenses, setExpenses] = useState([])
+  const [methods, setMethods] = useState([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize] = useState(8)
@@ -27,7 +28,16 @@ export default function Expenses() {
 
   useEffect(() => {
     fetchExpenses()
+    api
+      .get('/payment-methods')
+      .then(({ data }) => setMethods(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [])
+
+  const getMethodName = (methodId) => {
+    const method = methods.find((entry) => entry.id === Number(methodId))
+    return method?.name ?? '-'
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -77,6 +87,7 @@ export default function Expenses() {
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
             <tr>
               <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3">Method</th>
               <th className="px-4 py-3">Amount</th>
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Notes</th>
@@ -85,13 +96,13 @@ export default function Expenses() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={4}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
                   Loading expenses...
                 </td>
               </tr>
             ) : paged.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={4}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
                   No expenses found.
                 </td>
               </tr>
@@ -99,6 +110,7 @@ export default function Expenses() {
               paged.map((expense) => (
                 <tr key={expense.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-4 text-slate-900">{expense.description}</td>
+                  <td className="px-4 py-4 text-slate-500">{getMethodName(expense.paymentMethodId)}</td>
                   <td className="px-4 py-4 text-slate-600">${expense.amountUsd}</td>
                   <td className="px-4 py-4 text-slate-500">{expense.expenseDateUtc}</td>
                   <td className="px-4 py-4 text-slate-500">{expense.notes ?? '-'}</td>

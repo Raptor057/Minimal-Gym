@@ -6,6 +6,7 @@ import api from '../api/axios.js'
 import PageHeader from '../ui/PageHeader.jsx'
 
 const emptyItem = { productId: '', quantity: '1', unitPriceUsd: '', discountUsd: '0', taxUsd: '' }
+const emptyPayment = { paymentMethodId: '', amountUsd: '', reference: '', proofBase64: '', proofName: '' }
 
 export default function Sales() {
   const [sales, setSales] = useState([])
@@ -24,14 +25,21 @@ export default function Sales() {
   const [form, setForm] = useState({
     memberId: '',
     receiptNumber: '',
-    paymentMethodId: '',
-    paymentAmountUsd: '',
-    paymentReference: '',
   })
+  const [payments, setPayments] = useState([emptyPayment])
+  const [cashSummary, setCashSummary] = useState(null)
   const [saving, setSaving] = useState(false)
   const [showOutOfStock, setShowOutOfStock] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+
+  const toErrorMessage = (err, fallback) => {
+    const data = err?.response?.data
+    if (typeof data === 'string') return data
+    if (data?.detail) return data.detail
+    if (data?.title) return data.title
+    return fallback
+  }
 
   const loadSales = async () => {
     setLoading(true)
@@ -40,7 +48,7 @@ export default function Sales() {
       const { data } = await api.get('/sales')
       setSales(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err?.response?.data ?? 'Unable to load sales.')
+      setError(toErrorMessage(err, 'Unable to load sales.'))
     } finally {
       setLoading(false)
     }
@@ -62,9 +70,19 @@ export default function Sales() {
     setConfig(configRes?.data ?? null)
   }
 
+  const loadCashSummary = async () => {
+    try {
+      const { data } = await api.get('/cash/summary')
+      setCashSummary(data)
+    } catch {
+      setCashSummary(null)
+    }
+  }
+
   useEffect(() => {
     loadSales()
     loadFormData()
+    loadCashSummary()
   }, [])
 
   useEffect(() => {
@@ -90,11 +108,9 @@ export default function Sales() {
     setForm({
       memberId: '',
       receiptNumber: '',
-      paymentMethodId: '',
-      paymentAmountUsd: '',
-      paymentReference: '',
     })
     setItems([])
+    setPayments([emptyPayment])
     setModalOpen(true)
   }
 
@@ -172,6 +188,42 @@ export default function Sales() {
     { subtotal: 0, discount: 0, tax: 0, total: 0 }
   )
 
+  const paymentTotals = payments.reduce((sum, payment) => sum + Number(payment.amountUsd || 0), 0)
+  const remainingBalance = Math.max(0, totals.total - paymentTotals)
+  const changeDue = Math.max(0, paymentTotals - totals.total)
+  const canAddPayment = totals.total > 0 && paymentTotals < totals.total
+
+  const getMethod = (methodId) => methods.find((method) => method.id === Number(methodId))
+  const requiresProof = (methodId) => {
+    const method = getMethod(methodId)
+    return method ? method.name?.toLowerCase() !== 'cash' : false
+  }
+
+  const updatePayment = (index, patch) => {
+    setPayments((prev) => prev.map((payment, idx) => (idx === index ? { ...payment, ...patch } : payment)))
+  }
+
+  const removePayment = (index) => {
+    setPayments((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== index)))
+  }
+
+  const addPaymentRow = () => {
+    if (!canAddPayment) return
+    setPayments((prev) => [...prev, emptyPayment])
+  }
+
+  const handleProofChange = (index, file) => {
+    if (!file) {
+      updatePayment(index, { proofBase64: '', proofName: '' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      updatePayment(index, { proofBase64: String(reader.result || ''), proofName: file.name })
+    }
+    reader.readAsDataURL(file)
+  }
+
   const activeProducts = products.filter((product) => product.isActive)
   const inStockProducts = activeProducts.filter((product) => Number(product.stock ?? 0) > 0)
   const outOfStockProducts = activeProducts.filter((product) => Number(product.stock ?? 0) <= 0)
@@ -192,12 +244,25 @@ export default function Sales() {
         }
       }
 
-      const wantsPayment = form.paymentMethodId || form.paymentAmountUsd || form.paymentReference
-      if (wantsPayment) {
-        if (!form.paymentMethodId || Number(form.paymentAmountUsd) <= 0) {
-          setError('Select a payment method and amount to collect payment.')
+      if (payments.length === 0) {
+        setError('Add at least one payment.')
+        return
+      }
+
+      for (const payment of payments) {
+        if (!payment.paymentMethodId || Number(payment.amountUsd) <= 0) {
+          setError('Each payment needs a method and amount.')
           return
         }
+        if (requiresProof(payment.paymentMethodId) && !payment.proofBase64) {
+          setError('Upload proof for non-cash payments.')
+          return
+        }
+      }
+
+      if (paymentTotals < totals.total) {
+        setError('Payment total must cover the order total.')
+        return
       }
 
       const payload = {
@@ -217,17 +282,19 @@ export default function Sales() {
       }
 
       const { data } = await api.post('/sales', payload)
-      if (wantsPayment) {
-        await api.post(`/sales/${data.id}/payments`, {
-          paymentMethodId: Number(form.paymentMethodId),
-          amountUsd: Number(form.paymentAmountUsd),
-          reference: form.paymentReference || null,
-        })
-      }
+      await api.post(`/sales/${data.id}/payments/batch`, {
+        payments: payments.map((payment) => ({
+          paymentMethodId: Number(payment.paymentMethodId),
+          amountUsd: Number(payment.amountUsd),
+          reference: payment.reference || null,
+          proofBase64: payment.proofBase64 || null,
+        })),
+      })
       await loadSales()
       closeModal()
+      loadCashSummary()
     } catch (err) {
-      setError(err?.response?.data ?? 'Unable to create sale.')
+      setError(toErrorMessage(err, 'Unable to create sale.'))
     } finally {
       setSaving(false)
     }
@@ -238,8 +305,9 @@ export default function Sales() {
     try {
       await api.post(`/sales/${saleId}/refund`)
       await loadSales()
+      loadCashSummary()
     } catch (err) {
-      setError(err?.response?.data ?? 'Unable to refund sale.')
+      setError(toErrorMessage(err, 'Unable to refund sale.'))
     }
   }
 
@@ -252,7 +320,7 @@ export default function Sales() {
       const { data } = await api.get(`/sales/${saleId}/details`)
       setDetails(data)
     } catch (err) {
-      setError(err?.response?.data ?? 'Unable to load sale details.')
+      setError(toErrorMessage(err, 'Unable to load sale details.'))
       setDetailsOpen(false)
     } finally {
       setDetailsLoading(false)
@@ -272,6 +340,19 @@ export default function Sales() {
     if (Number.isNaN(numeric)) return '$0.00'
     return `$${numeric.toFixed(2)}`
   }
+
+  const saleStatusClass = (status) => {
+    const normalized = String(status || '').toLowerCase()
+    if (normalized === 'completed') return 'bg-emerald-50 text-emerald-700'
+    if (normalized === 'refunded') return 'bg-rose-50 text-rose-600'
+    if (normalized === 'voided') return 'bg-amber-50 text-amber-700'
+    return 'bg-slate-100 text-slate-600'
+  }
+
+  const detailsPaymentsTotal = details
+    ? details.payments.reduce((sum, payment) => sum + Number(payment.amountUsd || 0), 0)
+    : 0
+  const detailsChangeDue = details ? Math.max(0, detailsPaymentsTotal - Number(details.sale.totalUsd || 0)) : 0
 
 
   return (
@@ -300,6 +381,12 @@ export default function Sales() {
       {error ? (
         <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {String(error)}
+        </div>
+      ) : null}
+
+      {cashSummary ? (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+          Cash in drawer: <span className="font-semibold text-slate-900">{formatPrice(cashSummary.expectedCashUsd)}</span>
         </div>
       ) : null}
 
@@ -335,7 +422,7 @@ export default function Sales() {
                     ${sale.totalUsd} <span className="text-xs text-slate-400">({sale.subtotalUsd} subtotal)</span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${saleStatusClass(sale.status)}`}>
                       {sale.status}
                     </span>
                   </td>
@@ -671,49 +758,111 @@ export default function Sales() {
                           <dt className="text-base font-semibold text-slate-900">Order total</dt>
                           <dd className="text-base font-semibold text-slate-900">{formatPrice(totals.total)}</dd>
                         </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+                          <dt className="text-slate-600">Paid</dt>
+                          <dd className="font-medium text-slate-900">{formatPrice(paymentTotals)}</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-slate-600">Remaining</dt>
+                          <dd className="font-medium text-slate-900">{formatPrice(remainingBalance)}</dd>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <dt className="text-slate-600">Change due</dt>
+                          <dd className="font-medium text-slate-900">{formatPrice(changeDue)}</dd>
+                        </div>
                       </dl>
                     </section>
                   </div>
                 </div>
               </div>
 
-              <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
-                <div className="sm:col-span-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Payment (optional)</p>
-                  <p className="mt-1 text-sm text-slate-500">Collect payment now or leave it unpaid.</p>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Method</label>
-                  <select
-                    value={form.paymentMethodId}
-                    onChange={(event) => setForm({ ...form, paymentMethodId: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Payments</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Add payment methods until the total is covered.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addPaymentRow}
+                    disabled={!canAddPayment}
+                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 disabled:opacity-50"
                   >
-                    <option value="">Select method</option>
-                    {methods.map((method) => (
-                      <option key={method.id} value={method.id}>
-                        {method.name}
-                      </option>
-                    ))}
-                  </select>
+                    Add method
+                  </button>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.paymentAmountUsd}
-                    onChange={(event) => setForm({ ...form, paymentAmountUsd: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Reference</label>
-                  <input
-                    value={form.paymentReference}
-                    onChange={(event) => setForm({ ...form, paymentReference: event.target.value })}
-                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-                  />
+
+                <div className="mt-4 space-y-4">
+                  {payments.map((payment, index) => {
+                    const showProof = requiresProof(payment.paymentMethodId)
+                    return (
+                      <div key={`${payment.paymentMethodId}-${index}`} className="grid gap-4 sm:grid-cols-4">
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Method</label>
+                          <select
+                            value={payment.paymentMethodId}
+                            onChange={(event) =>
+                              updatePayment(index, { paymentMethodId: event.target.value, proofBase64: '', proofName: '' })
+                            }
+                            className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                          >
+                            <option value="">Select method</option>
+                            {methods.map((method) => (
+                              <option key={method.id} value={method.id}>
+                                {method.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Amount</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={payment.amountUsd}
+                            onChange={(event) => updatePayment(index, { amountUsd: event.target.value })}
+                            className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Reference</label>
+                          <input
+                            value={payment.reference}
+                            onChange={(event) => updatePayment(index, { reference: event.target.value })}
+                            className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => removePayment(index)}
+                            disabled={payments.length <= 1}
+                            className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        {showProof ? (
+                          <div className="sm:col-span-4">
+                            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                              Proof (required)
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(event) => handleProofChange(index, event.target.files?.[0] ?? null)}
+                              className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                            />
+                            {payment.proofName ? (
+                              <p className="mt-1 text-xs text-slate-500">Selected: {payment.proofName}</p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -795,6 +944,17 @@ export default function Sales() {
 
                 <div>
                   <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Payments</h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      Order total: <span className="font-semibold text-slate-900">{formatPrice(details.sale.totalUsd)}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      Paid: <span className="font-semibold text-slate-900">{formatPrice(detailsPaymentsTotal)}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      Change due: <span className="font-semibold text-slate-900">{formatPrice(detailsChangeDue)}</span>
+                    </div>
+                  </div>
                   <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
                     <table className="min-w-full text-left text-sm">
                       <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">

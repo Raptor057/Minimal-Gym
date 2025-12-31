@@ -15,7 +15,7 @@ public sealed class ExpenseRepository : IExpenseRepository
     public async Task<IReadOnlyList<Expense>> GetAll()
     {
         const string sql = """
-            SELECT Id, Description, AmountUsd, ExpenseDateUtc, Notes, CreatedAtUtc, CreatedByUserId
+            SELECT Id, Description, AmountUsd, PaymentMethodId, ExpenseDateUtc, Notes, ProofBase64, CashSessionId, CreatedAtUtc, CreatedByUserId
             FROM dbo.Expenses
             ORDER BY Id DESC
             """;
@@ -28,9 +28,9 @@ public sealed class ExpenseRepository : IExpenseRepository
     public async Task<int> Create(Expense expense)
     {
         const string sql = """
-            INSERT INTO dbo.Expenses (Description, AmountUsd, ExpenseDateUtc, Notes, CreatedAtUtc, CreatedByUserId)
+            INSERT INTO dbo.Expenses (Description, AmountUsd, PaymentMethodId, ExpenseDateUtc, Notes, ProofBase64, CashSessionId, CreatedAtUtc, CreatedByUserId)
             OUTPUT INSERTED.Id
-            VALUES (@Description, @AmountUsd, @ExpenseDateUtc, @Notes, @CreatedAtUtc, @CreatedByUserId)
+            VALUES (@Description, @AmountUsd, @PaymentMethodId, @ExpenseDateUtc, @Notes, @ProofBase64, @CashSessionId, @CreatedAtUtc, @CreatedByUserId)
             """;
 
         using var connection = _connectionFactory.Create();

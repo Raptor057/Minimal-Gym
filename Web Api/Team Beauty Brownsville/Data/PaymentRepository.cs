@@ -15,7 +15,7 @@ public sealed class PaymentRepository : IPaymentRepository
     public async Task<IReadOnlyList<Payment>> GetAll()
     {
         const string sql = """
-            SELECT Id, SubscriptionId, PaymentMethodId, AmountUsd, CurrencyCode, PaidAtUtc, Reference, Status, CreatedAtUtc
+            SELECT Id, SubscriptionId, PaymentMethodId, AmountUsd, CurrencyCode, PaidAtUtc, Reference, ProofBase64, Status, CreatedAtUtc
             FROM dbo.Payments
             ORDER BY Id DESC
             """;
@@ -28,7 +28,7 @@ public sealed class PaymentRepository : IPaymentRepository
     public async Task<Payment?> GetById(int id)
     {
         const string sql = """
-            SELECT Id, SubscriptionId, PaymentMethodId, AmountUsd, CurrencyCode, PaidAtUtc, Reference, Status, CreatedAtUtc
+            SELECT Id, SubscriptionId, PaymentMethodId, AmountUsd, CurrencyCode, PaidAtUtc, Reference, ProofBase64, Status, CreatedAtUtc
             FROM dbo.Payments
             WHERE Id = @Id
             """;
@@ -40,7 +40,7 @@ public sealed class PaymentRepository : IPaymentRepository
     public async Task<IReadOnlyList<Payment>> GetByMemberId(int memberId)
     {
         const string sql = """
-            SELECT p.Id, p.SubscriptionId, p.PaymentMethodId, p.AmountUsd, p.CurrencyCode, p.PaidAtUtc, p.Reference, p.Status, p.CreatedAtUtc
+            SELECT p.Id, p.SubscriptionId, p.PaymentMethodId, p.AmountUsd, p.CurrencyCode, p.PaidAtUtc, p.Reference, p.ProofBase64, p.Status, p.CreatedAtUtc
             FROM dbo.Payments p
             INNER JOIN dbo.Subscriptions s ON s.Id = p.SubscriptionId
             WHERE s.MemberId = @MemberId
@@ -55,9 +55,9 @@ public sealed class PaymentRepository : IPaymentRepository
     public async Task<int> Create(Payment payment)
     {
         const string sql = """
-            INSERT INTO dbo.Payments (SubscriptionId, PaymentMethodId, AmountUsd, CurrencyCode, PaidAtUtc, Reference, Status, CreatedAtUtc)
+            INSERT INTO dbo.Payments (SubscriptionId, PaymentMethodId, AmountUsd, CurrencyCode, PaidAtUtc, Reference, ProofBase64, Status, CreatedAtUtc)
             OUTPUT INSERTED.Id
-            VALUES (@SubscriptionId, @PaymentMethodId, @AmountUsd, @CurrencyCode, @PaidAtUtc, @Reference, @Status, @CreatedAtUtc)
+            VALUES (@SubscriptionId, @PaymentMethodId, @AmountUsd, @CurrencyCode, @PaidAtUtc, @Reference, @ProofBase64, @Status, @CreatedAtUtc)
             """;
 
         using var connection = _connectionFactory.Create();

@@ -8,6 +8,7 @@ public interface ISaleRepository
     Task<Sale?> GetById(int id);
     Task<int> CreateSaleWithItems(Sale sale, IReadOnlyList<SaleItem> items);
     Task CreateSalePayment(SalePayment payment);
+    Task CreateSalePayments(IReadOnlyList<SalePayment> payments);
     Task<IReadOnlyList<SaleItem>> GetItemsBySaleId(int saleId);
     Task<IReadOnlyList<SalePayment>> GetPaymentsBySaleId(int saleId);
     Task UpdateStatus(int saleId, string status);

@@ -72,9 +72,16 @@ public sealed class PaymentsController : ControllerBase
             return BadRequest("AmountUsd must be greater than zero.");
         }
 
-        if (!await _paymentMethods.Exists(request.PaymentMethodId))
+        var method = await _paymentMethods.GetById(request.PaymentMethodId);
+        if (method is null || !method.IsActive)
         {
             return BadRequest("Payment method not found or inactive.");
+        }
+
+        var isCash = string.Equals(method.Name, "Cash", StringComparison.OrdinalIgnoreCase);
+        if (!isCash && string.IsNullOrWhiteSpace(request.ProofBase64))
+        {
+            return BadRequest("Proof is required for non-cash payments.");
         }
 
         var paidAtUtc = request.PaidAtUtc ?? DateTime.UtcNow;
@@ -86,6 +93,7 @@ public sealed class PaymentsController : ControllerBase
             CurrencyCode = "USD",
             PaidAtUtc = paidAtUtc,
             Reference = request.Reference?.Trim(),
+            ProofBase64 = string.IsNullOrWhiteSpace(request.ProofBase64) ? null : request.ProofBase64.Trim(),
             Status = "Completed",
             CreatedAtUtc = DateTime.UtcNow
         };

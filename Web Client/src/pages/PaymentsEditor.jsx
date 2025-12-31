@@ -10,6 +10,8 @@ const emptyForm = {
   amountUsd: '',
   paidAtUtc: '',
   reference: '',
+  proofBase64: '',
+  proofName: '',
 }
 
 export default function PaymentsEditor() {
@@ -66,11 +68,19 @@ export default function PaymentsEditor() {
         return
       }
 
+      const method = methods.find((entry) => entry.id === Number(form.paymentMethodId))
+      const isCash = method?.name?.toLowerCase() === 'cash'
+      if (!isCash && !form.proofBase64) {
+        setError('Proof is required for non-cash payments.')
+        return
+      }
+
       const payload = {
         paymentMethodId: Number(form.paymentMethodId),
         amountUsd: Number(form.amountUsd),
         paidAtUtc: form.paidAtUtc || null,
         reference: form.reference || null,
+        proofBase64: form.proofBase64 || null,
       }
 
       await api.post(`/subscriptions/${form.subscriptionId}/payments`, payload)
@@ -149,7 +159,9 @@ export default function PaymentsEditor() {
                 </label>
                 <select
                   value={form.paymentMethodId}
-                  onChange={(event) => setForm({ ...form, paymentMethodId: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, paymentMethodId: event.target.value, proofBase64: '', proofName: '' })
+                  }
                   className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 >
                   <option value="">Select method</option>
@@ -192,6 +204,40 @@ export default function PaymentsEditor() {
                 />
               </div>
             </div>
+            {(() => {
+              const method = methods.find((entry) => entry.id === Number(form.paymentMethodId))
+              const requiresProof = method && method.name?.toLowerCase() !== 'cash'
+              if (!requiresProof) return null
+              return (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Proof (required)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (!file) {
+                        setForm((prev) => ({ ...prev, proofBase64: '', proofName: '' }))
+                        return
+                      }
+                      const reader = new FileReader()
+                      reader.onload = () => {
+                        setForm((prev) => ({
+                          ...prev,
+                          proofBase64: String(reader.result || ''),
+                          proofName: file.name,
+                        }))
+                      }
+                      reader.readAsDataURL(file)
+                    }}
+                    className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  {form.proofName ? <p className="mt-1 text-xs text-slate-500">Selected: {form.proofName}</p> : null}
+                </div>
+              )
+            })()}
             <div className="flex justify-end gap-3">
               <button
                 type="button"

@@ -8,4 +8,5 @@ public sealed class SalePayment
     public decimal AmountUsd { get; set; }
     public DateTime PaidAtUtc { get; set; }
     public string? Reference { get; set; }
+    public string? ProofBase64 { get; set; }
 }

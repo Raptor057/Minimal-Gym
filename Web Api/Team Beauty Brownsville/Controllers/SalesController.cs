@@ -20,6 +20,7 @@ public sealed class SalesController : ControllerBase
     private readonly IInventoryMovementRepository _movements;
     private readonly ICashRepository _cash;
     private readonly IConfigRepository _config;
+    private readonly ICashBalanceService _balances;
 
     public SalesController(
         ISaleRepository sales,
@@ -29,7 +30,8 @@ public sealed class SalesController : ControllerBase
         IAuditService audit,
         IInventoryMovementRepository movements,
         ICashRepository cash,
-        IConfigRepository config)
+        IConfigRepository config,
+        ICashBalanceService balances)
     {
         _sales = sales;
         _products = products;
@@ -39,6 +41,7 @@ public sealed class SalesController : ControllerBase
         _movements = movements;
         _cash = cash;
         _config = config;
+        _balances = balances;
     }
 
     [HttpGet("sales")]
@@ -192,12 +195,30 @@ public sealed class SalesController : ControllerBase
     }
 
     [HttpPost("sales/{id:int}/payments")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddPayment(int id, [FromBody] SalePaymentCreateRequest request)
     {
+        if (!User.IsInRole("Admin"))
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new ProblemDetails
+                {
+                    Title = "Forbidden",
+                    Detail = "Only admins can add individual payments."
+                });
+        }
+
         var sale = await _sales.GetById(id);
         if (sale is null)
         {
             return NotFound();
+        }
+
+        if (string.Equals(sale.Status, "Refunded", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("Refunded sales cannot accept payments.");
         }
 
         var openSession = await _cash.GetOpenSession();
@@ -211,9 +232,28 @@ public sealed class SalesController : ControllerBase
             return BadRequest("AmountUsd must be greater than zero.");
         }
 
-        if (!await _paymentMethods.Exists(request.PaymentMethodId))
+        var method = await _paymentMethods.GetById(request.PaymentMethodId);
+        if (method is null || !method.IsActive)
         {
             return BadRequest("Payment method not found or inactive.");
+        }
+
+        var isCash = string.Equals(method.Name, "Cash", StringComparison.OrdinalIgnoreCase);
+        if (!isCash && string.IsNullOrWhiteSpace(request.ProofBase64))
+        {
+            return BadRequest("Proof is required for non-cash payments.");
+        }
+
+        var existingPayments = await _sales.GetPaymentsBySaleId(id);
+        var totalPaid = existingPayments.Sum(payment => payment.AmountUsd);
+        if (totalPaid >= sale.TotalUsd)
+        {
+            return BadRequest("Sale is already fully paid.");
+        }
+
+        if (totalPaid + request.AmountUsd < sale.TotalUsd)
+        {
+            return BadRequest("Payment total must cover the sale total.");
         }
 
         var payment = new SalePayment
@@ -222,11 +262,88 @@ public sealed class SalesController : ControllerBase
             PaymentMethodId = request.PaymentMethodId,
             AmountUsd = request.AmountUsd,
             PaidAtUtc = request.PaidAtUtc ?? DateTime.UtcNow,
-            Reference = request.Reference?.Trim()
+            Reference = request.Reference?.Trim(),
+            ProofBase64 = string.IsNullOrWhiteSpace(request.ProofBase64) ? null : request.ProofBase64.Trim()
         };
 
         await _sales.CreateSalePayment(payment);
         await _audit.LogAsync("Create", "SalePayment", id.ToString(), GetUserId(), new { request.AmountUsd, request.PaymentMethodId });
+        return NoContent();
+    }
+
+    [HttpPost("sales/{id:int}/payments/batch")]
+    public async Task<IActionResult> AddPaymentsBatch(int id, [FromBody] SalePaymentBatchCreateRequest request)
+    {
+        var sale = await _sales.GetById(id);
+        if (sale is null)
+        {
+            return NotFound();
+        }
+
+        if (string.Equals(sale.Status, "Refunded", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("Refunded sales cannot accept payments.");
+        }
+
+        var openSession = await _cash.GetOpenSession();
+        if (openSession is null)
+        {
+            return BadRequest("No open cash session. Open cash before adding payments.");
+        }
+
+        if (request.Payments is null || request.Payments.Count == 0)
+        {
+            return BadRequest("At least one payment is required.");
+        }
+
+        var existingPayments = await _sales.GetPaymentsBySaleId(id);
+        var totalPaid = existingPayments.Sum(payment => payment.AmountUsd);
+        if (totalPaid >= sale.TotalUsd)
+        {
+            return BadRequest("Sale is already fully paid.");
+        }
+
+        var batchTotal = 0m;
+        var payments = new List<SalePayment>();
+
+        foreach (var entry in request.Payments)
+        {
+            if (entry.AmountUsd <= 0)
+            {
+                return BadRequest("AmountUsd must be greater than zero.");
+            }
+
+            var method = await _paymentMethods.GetById(entry.PaymentMethodId);
+            if (method is null || !method.IsActive)
+            {
+                return BadRequest("Payment method not found or inactive.");
+            }
+
+            var isCash = string.Equals(method.Name, "Cash", StringComparison.OrdinalIgnoreCase);
+            if (!isCash && string.IsNullOrWhiteSpace(entry.ProofBase64))
+            {
+                return BadRequest("Proof is required for non-cash payments.");
+            }
+
+            batchTotal += entry.AmountUsd;
+            payments.Add(new SalePayment
+            {
+                SaleId = id,
+                PaymentMethodId = entry.PaymentMethodId,
+                AmountUsd = entry.AmountUsd,
+                PaidAtUtc = entry.PaidAtUtc ?? DateTime.UtcNow,
+                Reference = entry.Reference?.Trim(),
+                ProofBase64 = string.IsNullOrWhiteSpace(entry.ProofBase64) ? null : entry.ProofBase64.Trim()
+            });
+        }
+
+        if (totalPaid + batchTotal < sale.TotalUsd)
+        {
+            return BadRequest("Payment total must cover the sale total.");
+        }
+
+        await _sales.CreateSalePayments(payments);
+        await _audit.LogAsync("Create", "SalePayment", id.ToString(), GetUserId(), new { TotalUsd = batchTotal, Count = payments.Count });
         return NoContent();
     }
 
@@ -244,7 +361,50 @@ public sealed class SalesController : ControllerBase
             return BadRequest("Sale already refunded.");
         }
 
+        var openSession = await _cash.GetOpenSession();
+        if (openSession is null)
+        {
+            return BadRequest("No open cash session. Open cash before processing refunds.");
+        }
+
         var items = await _sales.GetItemsBySaleId(id);
+        var payments = await _sales.GetPaymentsBySaleId(id);
+        var refundByMethod = payments
+            .Where(payment => payment.AmountUsd > 0)
+            .GroupBy(payment => payment.PaymentMethodId)
+            .ToDictionary(group => group.Key, group => group.Sum(payment => payment.AmountUsd));
+
+        if (refundByMethod.Count > 0)
+        {
+            var snapshot = await _balances.GetOpenSnapshot();
+            if (snapshot is null)
+            {
+                return BadRequest("No open cash session. Open cash before processing refunds.");
+            }
+
+            foreach (var entry in refundByMethod)
+            {
+                var currentBalance = snapshot.MethodBalances.TryGetValue(entry.Key, out var amount) ? amount : 0m;
+                if (currentBalance - entry.Value < 0)
+                {
+                    return BadRequest("Refund would make the cash balance negative.");
+                }
+            }
+
+            foreach (var entry in refundByMethod)
+            {
+                var refundPayment = new SalePayment
+                {
+                    SaleId = id,
+                    PaymentMethodId = entry.Key,
+                    AmountUsd = -entry.Value,
+                    PaidAtUtc = DateTime.UtcNow,
+                    Reference = "Refund"
+                };
+                await _sales.CreateSalePayment(refundPayment);
+            }
+        }
+
         await _sales.UpdateStatus(id, "Refunded");
         await _sales.AddRefundInventory(id, items, GetUserId());
         await _audit.LogAsync("Refund", "Sale", id.ToString(), GetUserId(), new { Items = items.Count });

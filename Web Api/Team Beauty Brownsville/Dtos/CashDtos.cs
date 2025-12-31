@@ -37,3 +37,21 @@ public sealed record CashMovementResponse(
     DateTime CreatedAtUtc,
     int CreatedByUserId
 );
+
+public sealed record CashMethodTotalResponse(
+    int PaymentMethodId,
+    string Name,
+    decimal AmountUsd
+);
+
+public sealed record CashSessionSummaryResponse(
+    int CashSessionId,
+    DateTime OpenedAtUtc,
+    DateTime? ClosedAtUtc,
+    decimal OpeningAmountUsd,
+    decimal CashMovementsInUsd,
+    decimal CashMovementsOutUsd,
+    decimal CashExpensesUsd,
+    decimal ExpectedCashUsd,
+    IReadOnlyList<CashMethodTotalResponse> MethodTotals
+);

@@ -92,6 +92,15 @@ export default function Subscriptions() {
       ? members
       : members.filter((member) => member.fullName?.toLowerCase().includes(memberQuery.trim().toLowerCase()))
 
+  const subscriptionStatusClass = (status) => {
+    const normalized = String(status || '').toLowerCase()
+    if (normalized === 'active') return 'bg-emerald-50 text-emerald-700'
+    if (normalized === 'expired') return 'bg-rose-50 text-rose-600'
+    if (normalized === 'paused') return 'bg-amber-50 text-amber-700'
+    if (normalized === 'cancelled') return 'bg-slate-200 text-slate-700'
+    return 'bg-slate-100 text-slate-600'
+  }
+
   const selectedMember = members.find((member) => String(member.id) === selectedMemberId) ?? null
 
   const activeSubscription = subscriptions.find(
@@ -342,7 +351,7 @@ export default function Subscriptions() {
                     {sub.startDate} → {sub.endDate}
                   </td>
                   <td className="px-4 py-4">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${subscriptionStatusClass(sub.status)}`}>
                       {sub.status}
                     </span>
                   </td>

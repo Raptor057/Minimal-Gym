@@ -130,6 +130,12 @@ api.interceptors.response.use(
         return Promise.reject(refreshError)
       }
     }
+    if (error?.response?.data && typeof error.response.data === 'object') {
+      const detail = error.response.data.detail ?? error.response.data.title
+      if (detail) {
+        error.response.data = detail
+      }
+    }
     return Promise.reject(error)
   }
 )

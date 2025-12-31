@@ -4,7 +4,8 @@ public sealed record PaymentCreateRequest(
     int PaymentMethodId,
     decimal AmountUsd,
     DateTime? PaidAtUtc,
-    string? Reference
+    string? Reference,
+    string? ProofBase64
 );
 
 public sealed record PaymentResponse(

@@ -11,8 +11,8 @@ const emptyForm = {
 }
 
 const movementLabels = {
-  In: 'Entry',
-  Out: 'Exit',
+  In: 'In',
+  Out: 'Out',
   Adjust: 'Adjust',
   Waste: 'Waste',
 }
@@ -25,6 +25,7 @@ export default function Inventory() {
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [lockedProductId, setLockedProductId] = useState('')
   const [saving, setSaving] = useState(false)
 
   const fetchProducts = async () => {
@@ -50,30 +51,45 @@ export default function Inventory() {
     fetchMovements()
   }, [])
 
+  const lastMovementByProduct = useMemo(() => {
+    const map = new Map()
+    movements.forEach((movement) => {
+      const nextDate = new Date(movement.createdAtUtc)
+      const current = map.get(movement.productId)
+      if (!current || (nextDate instanceof Date && !Number.isNaN(nextDate) && nextDate > current)) {
+        map.set(movement.productId, nextDate)
+      }
+    })
+    return map
+  }, [movements])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return movements
-    return movements.filter((movement) => {
+    if (!term) return products
+    return products.filter((product) => {
       return (
-        String(movement.productId).includes(term) ||
-        movement.movementType?.toLowerCase().includes(term) ||
-        movement.notes?.toLowerCase().includes(term)
+        product.name?.toLowerCase().includes(term) ||
+        product.sku?.toLowerCase().includes(term) ||
+        product.category?.toLowerCase().includes(term)
       )
     })
-  }, [search, movements])
+  }, [search, products])
 
-  const productById = useMemo(() => {
-    return new Map(products.map((product) => [product.id, product]))
-  }, [products])
-
-  const openCreate = () => {
-    setForm(emptyForm)
+  const openCreate = (productId) => {
+    if (productId) {
+      setForm({ ...emptyForm, productId: String(productId) })
+      setLockedProductId(String(productId))
+    } else {
+      setForm(emptyForm)
+      setLockedProductId('')
+    }
     setModalOpen(true)
   }
 
   const closeModal = () => {
     setModalOpen(false)
     setForm(emptyForm)
+    setLockedProductId('')
   }
 
   const handleSave = async (event) => {
@@ -100,6 +116,7 @@ export default function Inventory() {
 
       await api.post('/inventory/movements', payload)
       await fetchMovements()
+      await fetchProducts()
       closeModal()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to create movement.')
@@ -108,27 +125,36 @@ export default function Inventory() {
     }
   }
 
+  const formatPrice = (value) => {
+    if (value === null || value === undefined || value === '') return '$0.00'
+    const numeric = Number(value)
+    if (Number.isNaN(numeric)) return '$0.00'
+    return `$${numeric.toFixed(2)}`
+  }
+
+  const formatLocalDateTime = (value) => {
+    if (!value) return '--'
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) return '--'
+    return date.toLocaleString()
+  }
+
   return (
     <div>
       <PageHeader
         eyebrow="Inventory"
-        title="Stock movements"
-        description="Entries, exits, adjustments, and waste."
-        actions={
-          <button onClick={openCreate} className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
-            New movement
-          </button>
-        }
+        title="Inventory"
+        description="Products, stock, and latest movements."
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Filter by type, product id, notes..."
+          placeholder="Search by name, sku, or category..."
           className="h-10 w-full max-w-sm rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
         />
-        <div className="text-sm text-slate-500">{filtered.length} movements</div>
+        <div className="text-sm text-slate-500">{filtered.length} products</div>
       </div>
 
       {error ? (
@@ -142,41 +168,76 @@ export default function Inventory() {
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
             <tr>
               <th className="px-4 py-3">Product</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Quantity</th>
-              <th className="px-4 py-3">Stock</th>
+              <th className="px-4 py-3">Sale price</th>
               <th className="px-4 py-3">Cost</th>
-              <th className="px-4 py-3">Notes</th>
-              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Stock</th>
+              <th className="px-4 py-3">Last movement</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={7}>
-                  Loading movements...
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
+                  Loading products...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={7}>
-                  No movements found.
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
+                  No products found.
                 </td>
               </tr>
             ) : (
-              filtered.map((movement) => (
-                <tr key={movement.id} className="hover:bg-slate-50/60">
-                  <td className="px-4 py-4 text-slate-900">#{movement.productId}</td>
-                  <td className="px-4 py-4 text-slate-600">
-                    {movementLabels[movement.movementType] ?? movement.movementType}
-                  </td>
-                  <td className="px-4 py-4 text-slate-600">{movement.quantity}</td>
-                  <td className="px-4 py-4 text-slate-600">{productById.get(movement.productId)?.stock ?? 0}</td>
-                  <td className="px-4 py-4 text-slate-600">{movement.unitCostUsd ?? '—'}</td>
-                  <td className="px-4 py-4 text-slate-500">{movement.notes ?? '—'}</td>
-                  <td className="px-4 py-4 text-slate-400">{movement.createdAtUtc}</td>
-                </tr>
-              ))
+              filtered.map((product) => {
+                const stock = Number(product.stock ?? 0)
+                const lastMovement = lastMovementByProduct.get(product.id)
+                return (
+                  <tr key={product.id} className="hover:bg-slate-50/60">
+                    <td className="py-5 pr-3 pl-4 text-sm whitespace-nowrap sm:pl-0">
+                      <div className="flex items-center">
+                        <div className="size-11 shrink-0">
+                          {product.photoBase64 ? (
+                            <img
+                              alt={product.name}
+                              src={product.photoBase64}
+                              className="size-11 rounded-full object-contain bg-slate-100"
+                            />
+                          ) : (
+                            <div className="size-11 rounded-full bg-slate-100" />
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          <div className="font-medium text-slate-900">{product.name}</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            SKU {product.sku} - {product.category || 'Uncategorized'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-slate-600">{formatPrice(product.salePriceUsd)}</td>
+                    <td className="px-4 py-4 text-slate-600">{formatPrice(product.costUsd)}</td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'
+                        }`}
+                      >
+                        {stock > 0 ? `In stock (${stock})` : 'Out of stock'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-slate-500">{formatLocalDateTime(lastMovement)}</td>
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        onClick={() => openCreate(product.id)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                      >
+                        New movement
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
@@ -201,10 +262,11 @@ export default function Inventory() {
                 <select
                   value={form.productId}
                   onChange={(event) => setForm({ ...form, productId: event.target.value })}
+                  disabled={Boolean(lockedProductId)}
                   className="mt-2 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
                 >
                   <option value="">Select product</option>
-                  {products.filter((p) => p.isActive).map((product) => (
+                  {products.map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name} (Stock: {product.stock ?? 0})
                     </option>

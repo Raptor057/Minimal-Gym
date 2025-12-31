@@ -93,12 +93,33 @@ public sealed class SaleRepository : ISaleRepository
     public async Task CreateSalePayment(SalePayment payment)
     {
         const string sql = """
-            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference)
-            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference)
+            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64)
+            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference, @ProofBase64)
             """;
 
         using var connection = _connectionFactory.Create();
         await connection.ExecuteAsync(sql, payment);
+    }
+
+    public async Task CreateSalePayments(IReadOnlyList<SalePayment> payments)
+    {
+        if (payments.Count == 0)
+        {
+            return;
+        }
+
+        const string sql = """
+            INSERT INTO dbo.SalePayments (SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64)
+            VALUES (@SaleId, @PaymentMethodId, @AmountUsd, @PaidAtUtc, @Reference, @ProofBase64)
+            """;
+
+        using var connection = _connectionFactory.Create();
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        await connection.ExecuteAsync(sql, payments, transaction);
+
+        transaction.Commit();
     }
 
     public async Task<IReadOnlyList<SaleItem>> GetItemsBySaleId(int saleId)
@@ -117,7 +138,7 @@ public sealed class SaleRepository : ISaleRepository
     public async Task<IReadOnlyList<SalePayment>> GetPaymentsBySaleId(int saleId)
     {
         const string sql = """
-            SELECT Id, SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference
+            SELECT Id, SaleId, PaymentMethodId, AmountUsd, PaidAtUtc, Reference, ProofBase64
             FROM dbo.SalePayments
             WHERE SaleId = @SaleId
             ORDER BY Id ASC

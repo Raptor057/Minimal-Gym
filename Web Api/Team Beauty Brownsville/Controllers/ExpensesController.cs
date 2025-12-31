@@ -14,12 +14,20 @@ namespace Team_Beauty_Brownsville.Controllers;
 public sealed class ExpensesController : ControllerBase
 {
     private readonly IExpenseRepository _expenses;
+    private readonly IPaymentMethodRepository _paymentMethods;
     private readonly IAuditService _audit;
+    private readonly ICashBalanceService _balances;
 
-    public ExpensesController(IExpenseRepository expenses, IAuditService audit)
+    public ExpensesController(
+        IExpenseRepository expenses,
+        IPaymentMethodRepository paymentMethods,
+        IAuditService audit,
+        ICashBalanceService balances)
     {
         _expenses = expenses;
+        _paymentMethods = paymentMethods;
         _audit = audit;
+        _balances = balances;
     }
 
     [HttpGet]
@@ -42,13 +50,55 @@ public sealed class ExpensesController : ControllerBase
             return BadRequest("AmountUsd must be greater than zero.");
         }
 
+        var method = await _paymentMethods.GetById(request.PaymentMethodId);
+        if (method is null || !method.IsActive)
+        {
+            return BadRequest("Payment method not found or inactive.");
+        }
+
+        var isCash = string.Equals(method.Name, "Cash", StringComparison.OrdinalIgnoreCase);
+        if (!isCash && string.IsNullOrWhiteSpace(request.ProofBase64))
+        {
+            return BadRequest("Proof is required for non-cash expenses.");
+        }
+
+        int? cashSessionId = null;
+        if (isCash)
+        {
+            var snapshot = await _balances.GetOpenSnapshot();
+            if (snapshot is null)
+            {
+                return BadRequest("No open cash session. Open cash before recording cash expenses.");
+            }
+
+            if (snapshot.CashMethodId is null)
+            {
+                return BadRequest("Cash method is not configured.");
+            }
+
+            if (!snapshot.MethodBalances.TryGetValue(snapshot.CashMethodId.Value, out var cashBalance))
+            {
+                cashBalance = 0m;
+            }
+
+            if (cashBalance - request.AmountUsd < 0)
+            {
+                return BadRequest("Cash balance cannot be negative.");
+            }
+
+            cashSessionId = snapshot.Session.Id;
+        }
+
         var expenseDateUtc = request.ExpenseDateUtc ?? DateTime.UtcNow;
         var expense = new Expense
         {
             Description = request.Description.Trim(),
             AmountUsd = request.AmountUsd,
+            PaymentMethodId = request.PaymentMethodId,
             ExpenseDateUtc = expenseDateUtc,
             Notes = request.Notes?.Trim(),
+            ProofBase64 = string.IsNullOrWhiteSpace(request.ProofBase64) ? null : request.ProofBase64.Trim(),
+            CashSessionId = cashSessionId,
             CreatedAtUtc = DateTime.UtcNow,
             CreatedByUserId = GetUserId()
         };
@@ -72,8 +122,10 @@ public sealed class ExpensesController : ControllerBase
             expense.Id,
             expense.Description,
             expense.AmountUsd,
+            expense.PaymentMethodId,
             expense.ExpenseDateUtc,
             expense.Notes,
+            expense.CashSessionId,
             expense.CreatedAtUtc,
             expense.CreatedByUserId);
     }

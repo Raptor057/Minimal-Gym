@@ -18,6 +18,9 @@ export default function Cash() {
   const [current, setCurrent] = useState(null)
   const [closures, setClosures] = useState([])
   const [movements, setMovements] = useState([])
+  const [summary, setSummary] = useState(null)
+  const [summaryModal, setSummaryModal] = useState(false)
+  const [summaryDetails, setSummaryDetails] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openModal, setOpenModal] = useState(false)
@@ -34,9 +37,12 @@ export default function Cash() {
     try {
       const { data } = await api.get('/cash/current')
       setCurrent(data)
+      const summaryData = await loadSummary()
+      setSummary(summaryData)
     } catch (err) {
       if (err?.response?.status === 404) {
         setCurrent(null)
+        setSummary(null)
         return
       }
       setError(err?.response?.data ?? 'Unable to load cash session.')
@@ -58,6 +64,15 @@ export default function Cash() {
       setMovements(Array.isArray(data) ? data : [])
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to load cash movements.')
+    }
+  }
+
+  const loadSummary = async (cashSessionId) => {
+    try {
+      const { data } = await api.get('/cash/summary', { params: cashSessionId ? { cashSessionId } : {} })
+      return data
+    } catch {
+      return null
     }
   }
 
@@ -92,6 +107,18 @@ export default function Cash() {
   const closeMovementModal = () => setMovementModal(false)
   const closeCloseModal = () => setCloseModal(false)
 
+  const openSummary = async (sessionId) => {
+    setSummaryModal(true)
+    setSummaryDetails(null)
+    const data = await loadSummary(sessionId)
+    setSummaryDetails(data)
+  }
+
+  const closeSummary = () => {
+    setSummaryModal(false)
+    setSummaryDetails(null)
+  }
+
   const handleOpenSubmit = async (event) => {
     event.preventDefault()
     setSaving(true)
@@ -104,6 +131,8 @@ export default function Cash() {
       }
       const { data } = await api.post('/cash/open', { openingAmountUsd: amount })
       setCurrent(data)
+      const summaryData = await loadSummary()
+      setSummary(summaryData)
       closeCashModal()
       setOpenForm(emptyOpen)
     } catch (err) {
@@ -136,6 +165,7 @@ export default function Cash() {
       setMovementModal(false)
       setMovementForm(emptyMovement)
       await loadMovements()
+      await loadCurrent()
     } catch (err) {
       setError(err?.response?.data ?? 'Unable to add cash movement.')
     } finally {
@@ -229,12 +259,28 @@ export default function Cash() {
               <div>Status: {current.status}</div>
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:col-span-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Notes</p>
             <p className="mt-3 text-sm text-slate-600">
               Sales and payments require an open session. Use movements for petty cash in/out during the shift.
             </p>
           </div>
+          {summary ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Cash summary</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-900">${summary.expectedCashUsd}</p>
+              <div className="mt-4 space-y-2 text-sm text-slate-500">
+                {summary.methodTotals.map((entry) => (
+                  <div key={entry.paymentMethodId}>
+                    {entry.name}: ${entry.amountUsd}
+                  </div>
+                ))}
+                <div>Movements in: ${summary.cashMovementsInUsd}</div>
+                <div>Movements out: ${summary.cashMovementsOutUsd}</div>
+                <div>Cash expenses: ${summary.cashExpensesUsd}</div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="mt-6">
@@ -257,12 +303,13 @@ export default function Cash() {
               <th className="px-4 py-3">Closed</th>
               <th className="px-4 py-3">Opening</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {closures.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-slate-500" colSpan={5}>
+                <td className="px-4 py-6 text-sm text-slate-500" colSpan={6}>
                   No closures yet.
                 </td>
               </tr>
@@ -274,6 +321,14 @@ export default function Cash() {
                   <td className="px-4 py-4 text-slate-500">{session.closedAtUtc ?? '-'}</td>
                   <td className="px-4 py-4 text-slate-500">${session.openingAmountUsd}</td>
                   <td className="px-4 py-4 text-slate-500">{session.status}</td>
+                  <td className="px-4 py-4 text-right">
+                    <button
+                      onClick={() => openSummary(session.id)}
+                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      Details
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -514,6 +569,63 @@ export default function Cash() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {summaryModal ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 text-center sm:items-center">
+          <div className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl transition-all">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-display text-xl text-slate-900">Cash closure details</h3>
+                <p className="mt-1 text-sm text-slate-500">Totals by payment method and cash adjustments.</p>
+              </div>
+              <button onClick={closeSummary} className="text-sm text-slate-500 hover:text-slate-900">
+                Close
+              </button>
+            </div>
+            {!summaryDetails ? (
+              <div className="mt-6 text-sm text-slate-500">Loading details...</div>
+            ) : (
+              <div className="mt-6 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Expected cash: <span className="font-semibold text-slate-900">${summaryDetails.expectedCashUsd}</span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Opening: <span className="font-semibold text-slate-900">${summaryDetails.openingAmountUsd}</span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Movements in: <span className="font-semibold text-slate-900">${summaryDetails.cashMovementsInUsd}</span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Movements out: <span className="font-semibold text-slate-900">${summaryDetails.cashMovementsOutUsd}</span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Cash expenses: <span className="font-semibold text-slate-900">${summaryDetails.cashExpensesUsd}</span>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-[0.2em] text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Method</th>
+                        <th className="px-4 py-3">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {summaryDetails.methodTotals.map((entry) => (
+                        <tr key={entry.paymentMethodId}>
+                          <td className="px-4 py-4 text-slate-900">{entry.name}</td>
+                          <td className="px-4 py-4 text-slate-600">${entry.amountUsd}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
