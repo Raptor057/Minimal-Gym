@@ -142,14 +142,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          brew install pcre2 zlib openssl@3
+          export MACOSX_DEPLOYMENT_TARGET=11.0
           out_dir="${GITHUB_WORKSPACE}/out/${{ matrix.pkg }}/TeamBeautyBrownsville"
           tmp_dir="$(mktemp -d)"
           curl -L -o "$tmp_dir/nginx.tar.gz" "https://github.com/nginx/nginx/releases/download/release-1.29.4/nginx-1.29.4.tar.gz"
+          curl -L -o "$tmp_dir/pcre.tar.gz" "https://downloads.sourceforge.net/project/pcre/pcre/8.45/pcre-8.45.tar.gz"
+          curl -L -o "$tmp_dir/zlib.tar.gz" "https://zlib.net/zlib-1.3.1.tar.gz"
           tar -xzf "$tmp_dir/nginx.tar.gz" -C "$tmp_dir"
+          tar -xzf "$tmp_dir/pcre.tar.gz" -C "$tmp_dir"
+          tar -xzf "$tmp_dir/zlib.tar.gz" -C "$tmp_dir"
           src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'nginx-*' | head -n 1)"
+          pcre_src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'pcre-*' | head -n 1)"
+          zlib_src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'zlib-*' | head -n 1)"
           pushd "$src"
-          ./configure --prefix="$out_dir/nginx" --with-http_ssl_module --with-pcre
+          ./configure --prefix="$out_dir/nginx" --with-pcre="$pcre_src" --with-zlib="$zlib_src" --without-http_ssl_module
           make -j2
           make install
           popd

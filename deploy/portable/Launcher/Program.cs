@@ -58,7 +58,14 @@ namespace TeamBeautyBrownsville.Launcher
             Process apiProcess;
             try
             {
-                apiProcess = Process.Start(apiInfo) ?? throw new InvalidOperationException("Failed to start API process.");
+                if (TryGetRunningProcess(apiPid, out Process? existingApi))
+                {
+                    apiProcess = existingApi;
+                }
+                else
+                {
+                    apiProcess = Process.Start(apiInfo) ?? throw new InvalidOperationException("Failed to start API process.");
+                }
             }
             catch (Exception ex)
             {
@@ -80,7 +87,10 @@ namespace TeamBeautyBrownsville.Launcher
 
             try
             {
-                Process.Start(nginxInfo);
+                if (!TryGetRunningProcess(nginxPid, out _))
+                {
+                    Process.Start(nginxInfo);
+                }
             }
             catch (Exception ex)
             {
@@ -156,6 +166,31 @@ namespace TeamBeautyBrownsville.Launcher
             catch
             {
                 // Best-effort stop.
+            }
+        }
+
+        private static bool TryGetRunningProcess(string pidFile, out Process? process)
+        {
+            process = null;
+            try
+            {
+                if (!File.Exists(pidFile))
+                {
+                    return false;
+                }
+
+                string content = File.ReadAllText(pidFile).Trim();
+                if (!int.TryParse(content, out int pid))
+                {
+                    return false;
+                }
+
+                process = Process.GetProcessById(pid);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
