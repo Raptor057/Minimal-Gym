@@ -5,6 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>TeamBeautyBrownsville.Launcher</AssemblyName>
-    <ApplicationIcon>../../.github/icons/gym-logo.ico</ApplicationIcon>
+    <ApplicationIcon Condition=" '$(OS)' == 'Windows_NT' ">../../../.github/icons/gym-logo.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>
