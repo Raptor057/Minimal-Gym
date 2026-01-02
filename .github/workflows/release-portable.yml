@@ -1,0 +1,181 @@
+name: Release portable
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (e.g., v1.0.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: "Create as draft"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            pkg: windows
+          - os: ubuntu-latest
+            rid: linux-x64
+            pkg: linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          mkdir -p "$out_dir/web"
+          pushd "Web Client"
+          npm install
+          npm run build
+          popd
+          cp -a "Web Client/dist/." "$out_dir/web/"
+
+      - name: Publish API
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          dotnet publish "Web Api/Team Beauty Brownsville/Team Beauty Brownsville.csproj" -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o "$out_dir/api"
+          if [ "${{ matrix.pkg }}" = "linux" ]; then
+            chmod +x "$out_dir/api/Team Beauty Brownsville"
+          fi
+
+      - name: Download and extract Nginx (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outDir = "out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          $zipPath = Join-Path $env:RUNNER_TEMP "nginx.zip"
+          $extractPath = Join-Path $env:RUNNER_TEMP "nginx"
+          Invoke-WebRequest -Uri "https://github.com/nginx/nginx/releases/download/release-1.29.4/nginx-1.29.4.zip" -OutFile $zipPath
+          Remove-Item -Recurse -Force $extractPath -ErrorAction SilentlyContinue
+          Expand-Archive -Path $zipPath -DestinationPath $extractPath
+          $src = Get-ChildItem -Path $extractPath | Select-Object -First 1
+          $dest = Join-Path $outDir "nginx"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item -Path (Join-Path $src.FullName "*") -Destination $dest -Recurse -Force
+          Copy-Item -Path "deploy/portable/nginx.conf" -Destination (Join-Path $dest "conf/nginx.conf") -Force
+
+      - name: Download and extract Nginx (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          tmp_dir="$(mktemp -d)"
+          curl -L -o "$tmp_dir/nginx.tar.gz" "https://github.com/nginx/nginx/releases/download/release-1.29.4/nginx-1.29.4.tar.gz"
+          tar -xzf "$tmp_dir/nginx.tar.gz" -C "$tmp_dir"
+          src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'nginx-*' | head -n 1)"
+          mkdir -p "$out_dir/nginx"
+          cp -a "$src/." "$out_dir/nginx/"
+          cp "deploy/portable/nginx.conf" "$out_dir/nginx/conf/nginx.conf"
+
+      - name: Copy scripts and README (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outDir = "out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          Copy-Item -Path "deploy/portable/start.ps1" -Destination $outDir -Force
+          Copy-Item -Path "deploy/portable/stop.ps1" -Destination $outDir -Force
+          Copy-Item -Path "deploy/portable/README.txt" -Destination $outDir -Force
+
+      - name: Copy scripts and README (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          cp "deploy/portable/start.sh" "$out_dir/"
+          cp "deploy/portable/stop.sh" "$out_dir/"
+          cp "deploy/portable/README.txt" "$out_dir/"
+          chmod +x "$out_dir/start.sh" "$out_dir/stop.sh"
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outDir = "out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          $zipPath = "out/TeamBeautyBrownsville-win-x64.zip"
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path $outDir -DestinationPath $zipPath
+
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf "out/TeamBeautyBrownsville-linux-x64.tar.gz" -C "out/${{ matrix.pkg }}" "TeamBeautyBrownsville"
+
+      - name: Upload artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeamBeautyBrownsville-windows-x64
+          path: out/TeamBeautyBrownsville-win-x64.zip
+
+      - name: Upload artifact (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeamBeautyBrownsville-linux-x64
+          path: out/TeamBeautyBrownsville-linux-x64.tar.gz
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+          files: |
+            release-assets/TeamBeautyBrownsville-win-x64.zip
+            release-assets/TeamBeautyBrownsville-linux-x64.tar.gz
