@@ -58,7 +58,7 @@ namespace TeamBeautyBrownsville.Launcher
             Process apiProcess;
             try
             {
-                if (TryGetRunningProcess(apiPid, out Process? existingApi))
+                if (TryGetRunningProcess(apiPid, out Process existingApi))
                 {
                     apiProcess = existingApi;
                 }
@@ -169,9 +169,9 @@ namespace TeamBeautyBrownsville.Launcher
             }
         }
 
-        private static bool TryGetRunningProcess(string pidFile, out Process? process)
+        private static bool TryGetRunningProcess(string pidFile, out Process process)
         {
-            process = null;
+            process = null!;
             try
             {
                 if (!File.Exists(pidFile))

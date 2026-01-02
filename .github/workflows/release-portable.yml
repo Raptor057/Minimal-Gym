@@ -155,7 +155,7 @@ jobs:
           pcre_src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'pcre-*' | head -n 1)"
           zlib_src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'zlib-*' | head -n 1)"
           pushd "$src"
-          ./configure --prefix="$out_dir/nginx" --with-pcre="$pcre_src" --with-zlib="$zlib_src" --without-http_ssl_module
+          ./configure --prefix="$out_dir/nginx" --with-pcre="$pcre_src" --with-zlib="$zlib_src"
           make -j2
           make install
           popd
