@@ -6,8 +6,8 @@ Contents:
 - nginx/ nginx distribution with portable config
 
 Windows:
-- Run start.ps1 from the package root
-- Stop with stop.ps1
+- Run TeamBeautyBrownsville.Launcher.exe from the package root
+- Or use start.ps1 / stop.ps1 if needed
 
 Linux:
 - chmod +x start.sh stop.sh

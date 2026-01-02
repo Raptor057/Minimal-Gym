@@ -76,6 +76,14 @@ jobs:
             chmod +x "$out_dir/api/Team Beauty Brownsville"
           fi
 
+      - name: Publish launcher (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outDir = "out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          dotnet publish "deploy/portable/Launcher/TeamBeautyBrownsville.Launcher.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o $outDir
+
       - name: Download and extract Nginx (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
