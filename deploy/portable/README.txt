@@ -12,6 +12,9 @@ Windows:
 macOS:
 - Open TeamBeautyBrownsville.app
 - To stop: ./TeamBeautyBrownsville.app/Contents/MacOS/TeamBeautyBrownsville stop
+- If macOS blocks the app, run:
+  xattr -dr com.apple.quarantine "/path/TeamBeautyBrownsville.app"
+  codesign --force --deep --sign - "/path/TeamBeautyBrownsville.app"
 
 Linux:
 - chmod +x start.sh stop.sh
