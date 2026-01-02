@@ -29,8 +29,10 @@ namespace TeamBeautyBrownsville.Launcher
         private static void Start()
         {
             string root = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string apiExe = Path.Combine(root, "api", "Team Beauty Brownsville.exe");
-            string nginxExe = Path.Combine(root, "nginx", "nginx.exe");
+            bool isWindows = OperatingSystem.IsWindows();
+            string apiName = isWindows ? "Team Beauty Brownsville.exe" : "Team Beauty Brownsville";
+            string apiExe = Path.Combine(root, "api", apiName);
+            string nginxExe = FindNginxBinary(root);
             string apiPid = Path.Combine(root, "api.pid");
             string nginxPid = Path.Combine(root, "nginx.pid");
 
@@ -39,9 +41,9 @@ namespace TeamBeautyBrownsville.Launcher
                 throw new InvalidOperationException($"API binary not found: {apiExe}");
             }
 
-            if (!File.Exists(nginxExe))
+            if (string.IsNullOrWhiteSpace(nginxExe) || !File.Exists(nginxExe))
             {
-                throw new InvalidOperationException($"Nginx binary not found: {nginxExe}");
+                throw new InvalidOperationException("Nginx binary not found under the nginx folder.");
             }
 
             var apiInfo = new ProcessStartInfo
@@ -60,7 +62,9 @@ namespace TeamBeautyBrownsville.Launcher
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Failed to start API process. If Windows blocked the file, right-click the EXE, open Properties, and click Unblock, or run Unblock-File on it.", ex);
+                throw new InvalidOperationException(isWindows
+                    ? "Failed to start API process. If Windows blocked the file, right-click the EXE, open Properties, and click Unblock, or run Unblock-File on it."
+                    : "Failed to start API process.", ex);
             }
 
             File.WriteAllText(apiPid, apiProcess.Id.ToString());
@@ -80,7 +84,9 @@ namespace TeamBeautyBrownsville.Launcher
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException("Failed to start Nginx. If Windows blocked the file, right-click the EXE, open Properties, and click Unblock, or run Unblock-File on it.", ex);
+                throw new InvalidOperationException(isWindows
+                    ? "Failed to start Nginx. If Windows blocked the file, right-click the EXE, open Properties, and click Unblock, or run Unblock-File on it."
+                    : "Failed to start Nginx.", ex);
             }
 
             if (!File.Exists(nginxPid))
@@ -96,10 +102,10 @@ namespace TeamBeautyBrownsville.Launcher
             string root = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string apiPid = Path.Combine(root, "api.pid");
             string nginxPid = Path.Combine(root, "nginx.pid");
-            string nginxExe = Path.Combine(root, "nginx", "nginx.exe");
+            string nginxExe = FindNginxBinary(root);
             string nginxPrefix = Path.Combine(root, "nginx");
 
-            if (File.Exists(nginxExe))
+            if (!string.IsNullOrWhiteSpace(nginxExe) && File.Exists(nginxExe))
             {
                 TryStartProcess(nginxExe, "-p \"" + nginxPrefix + "\" -c conf/nginx.conf -s stop -g \"pid ../nginx.pid;\"");
             }
@@ -151,6 +157,41 @@ namespace TeamBeautyBrownsville.Launcher
             {
                 // Best-effort stop.
             }
+        }
+
+        private static string FindNginxBinary(string root)
+        {
+            string windowsPath = Path.Combine(root, "nginx", "nginx.exe");
+            if (File.Exists(windowsPath))
+            {
+                return windowsPath;
+            }
+
+            string unixPath = Path.Combine(root, "nginx", "sbin", "nginx");
+            if (File.Exists(unixPath))
+            {
+                return unixPath;
+            }
+
+            string flatUnix = Path.Combine(root, "nginx", "nginx");
+            if (File.Exists(flatUnix))
+            {
+                return flatUnix;
+            }
+
+            try
+            {
+                foreach (string file in Directory.EnumerateFiles(Path.Combine(root, "nginx"), "nginx", SearchOption.AllDirectories))
+                {
+                    return file;
+                }
+            }
+            catch
+            {
+                // Best-effort discovery.
+            }
+
+            return string.Empty;
         }
     }
 }

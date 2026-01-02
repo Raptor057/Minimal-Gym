@@ -39,6 +39,12 @@ jobs:
           - os: ubuntu-latest
             rid: linux-x64
             pkg: linux
+          - os: macos-13
+            rid: osx-x64
+            pkg: macos-x64
+          - os: macos-14
+            rid: osx-arm64
+            pkg: macos-arm64
 
     steps:
       - name: Checkout
@@ -72,7 +78,7 @@ jobs:
           set -euo pipefail
           out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
           dotnet publish "Web Api/Team Beauty Brownsville/Team Beauty Brownsville.csproj" -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o "$out_dir/api"
-          if [ "${{ matrix.pkg }}" = "linux" ]; then
+          if [ "${{ matrix.pkg }}" != "windows" ]; then
             chmod +x "$out_dir/api/Team Beauty Brownsville"
           fi
 
@@ -83,6 +89,17 @@ jobs:
           $ErrorActionPreference = "Stop"
           $outDir = "out/${{ matrix.pkg }}/TeamBeautyBrownsville"
           dotnet publish "deploy/portable/Launcher/TeamBeautyBrownsville.Launcher.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o $outDir
+
+      - name: Publish launcher (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          dotnet publish "deploy/portable/Launcher/TeamBeautyBrownsville.Launcher.csproj" -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o "$out_dir"
+          if [ -f "$out_dir/TeamBeautyBrownsville.Launcher" ]; then
+            mv "$out_dir/TeamBeautyBrownsville.Launcher" "$out_dir/TeamBeautyBrownsville"
+          fi
 
       - name: Download and extract Nginx (Windows)
         if: matrix.os == 'windows-latest'
@@ -101,18 +118,41 @@ jobs:
           Copy-Item -Path (Join-Path $src.FullName "*") -Destination $dest -Recurse -Force
           Copy-Item -Path "deploy/portable/nginx.conf" -Destination (Join-Path $dest "conf/nginx.conf") -Force
 
-      - name: Download and extract Nginx (Linux)
+      - name: Build Nginx (Linux)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential libpcre3-dev zlib1g-dev libssl-dev
           out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
           tmp_dir="$(mktemp -d)"
           curl -L -o "$tmp_dir/nginx.tar.gz" "https://github.com/nginx/nginx/releases/download/release-1.29.4/nginx-1.29.4.tar.gz"
           tar -xzf "$tmp_dir/nginx.tar.gz" -C "$tmp_dir"
           src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'nginx-*' | head -n 1)"
-          mkdir -p "$out_dir/nginx"
-          cp -a "$src/." "$out_dir/nginx/"
+          pushd "$src"
+          ./configure --prefix="$out_dir/nginx"
+          make -j2
+          make install
+          popd
+          cp "deploy/portable/nginx.conf" "$out_dir/nginx/conf/nginx.conf"
+
+      - name: Build Nginx (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install pcre2 zlib openssl@3
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          tmp_dir="$(mktemp -d)"
+          curl -L -o "$tmp_dir/nginx.tar.gz" "https://github.com/nginx/nginx/releases/download/release-1.29.4/nginx-1.29.4.tar.gz"
+          tar -xzf "$tmp_dir/nginx.tar.gz" -C "$tmp_dir"
+          src="$(find "$tmp_dir" -maxdepth 1 -type d -name 'nginx-*' | head -n 1)"
+          pushd "$src"
+          ./configure --prefix="$out_dir/nginx" --with-http_ssl_module --with-pcre
+          make -j2
+          make install
+          popd
           cp "deploy/portable/nginx.conf" "$out_dir/nginx/conf/nginx.conf"
 
       - name: Copy scripts and README (Windows)
@@ -136,6 +176,23 @@ jobs:
           cp "deploy/portable/README.txt" "$out_dir/"
           chmod +x "$out_dir/start.sh" "$out_dir/stop.sh"
 
+      - name: Build macOS app bundle
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville"
+          app_root="out/${{ matrix.pkg }}/TeamBeautyBrownsville.app/Contents"
+          mkdir -p "$app_root/MacOS"
+          mkdir -p "$app_root/Resources"
+          cp "deploy/portable/macos/Info.plist" "$app_root/Info.plist"
+          cp ".github/icons/gym-logo.icns" "$app_root/Resources/gym-logo.icns"
+          cp "$out_dir/TeamBeautyBrownsville" "$app_root/MacOS/TeamBeautyBrownsville"
+          cp -a "$out_dir/api" "$app_root/MacOS/"
+          cp -a "$out_dir/web" "$app_root/MacOS/"
+          cp -a "$out_dir/nginx" "$app_root/MacOS/"
+          chmod +x "$app_root/MacOS/TeamBeautyBrownsville"
+
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -153,6 +210,15 @@ jobs:
           set -euo pipefail
           tar -czf "out/TeamBeautyBrownsville-linux-x64.tar.gz" -C "out/${{ matrix.pkg }}" "TeamBeautyBrownsville"
 
+      - name: Package (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_dir="out/${{ matrix.pkg }}/TeamBeautyBrownsville.app"
+          out_zip="out/TeamBeautyBrownsville-${{ matrix.pkg }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$app_dir" "$out_zip"
+
       - name: Upload artifact (Windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
@@ -166,6 +232,13 @@ jobs:
         with:
           name: TeamBeautyBrownsville-linux-x64
           path: out/TeamBeautyBrownsville-linux-x64.tar.gz
+
+      - name: Upload artifact (macOS)
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeamBeautyBrownsville-${{ matrix.pkg }}
+          path: out/TeamBeautyBrownsville-${{ matrix.pkg }}.zip
 
   release:
     runs-on: ubuntu-latest
@@ -187,3 +260,5 @@ jobs:
           files: |
             release-assets/TeamBeautyBrownsville-win-x64.zip
             release-assets/TeamBeautyBrownsville-linux-x64.tar.gz
+            release-assets/TeamBeautyBrownsville-macos-x64.zip
+            release-assets/TeamBeautyBrownsville-macos-arm64.zip

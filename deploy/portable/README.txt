@@ -9,6 +9,10 @@ Windows:
 - Run TeamBeautyBrownsville.Launcher.exe from the package root
 - Or use start.ps1 / stop.ps1 if needed
 
+macOS:
+- Open TeamBeautyBrownsville.app
+- To stop: ./TeamBeautyBrownsville.app/Contents/MacOS/TeamBeautyBrownsville stop
+
 Linux:
 - chmod +x start.sh stop.sh
 - ./start.sh
