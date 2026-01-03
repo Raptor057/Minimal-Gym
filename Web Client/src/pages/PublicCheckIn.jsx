@@ -13,6 +13,8 @@ export default function PublicCheckIn() {
   const [scanSupported, setScanSupported] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState('')
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualCode, setManualCode] = useState('')
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const rafRef = useRef(0)
@@ -86,7 +88,7 @@ export default function PublicCheckIn() {
     }
 
     const handleKeyDown = (event) => {
-      if (scanningRef.current) return
+      if (manualOpen || scanningRef.current) return
       if (event.key === 'Enter') {
         const value = buffer.trim()
         if (value) {
@@ -112,7 +114,7 @@ export default function PublicCheckIn() {
       window.removeEventListener('keydown', handleKeyDown)
       reset()
     }
-  }, [])
+  }, [manualOpen])
 
   const stopScan = () => {
     scanningRef.current = false
@@ -129,6 +131,31 @@ export default function PublicCheckIn() {
     if (videoRef.current) {
       videoRef.current.srcObject = null
     }
+  }
+
+  const openManualInput = () => {
+    stopScan()
+    setManualCode('')
+    setManualOpen(true)
+    setError('')
+    setScanError('')
+    setCheckInResult(null)
+  }
+
+  const closeManualInput = () => {
+    setManualOpen(false)
+  }
+
+  const submitManualInput = async (event) => {
+    event.preventDefault()
+    const value = manualCode.trim()
+    if (!value) {
+      setError('Enter your member code.')
+      return
+    }
+    setMemberId(value)
+    await handleLookupByValue(value, { autoCheck: true })
+    setManualOpen(false)
   }
 
   const handleLookupByValue = async (value, { autoCheck = true } = {}) => {
@@ -236,9 +263,13 @@ export default function PublicCheckIn() {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <div className="rounded-full border border-slate-800 bg-black px-5 py-3 text-sm text-slate-300">
-            Scan your member QR or use the handheld scanner.
-          </div>
+          <button
+            type="button"
+            onClick={openManualInput}
+            className="rounded-full border border-slate-800 bg-black px-5 py-3 text-left text-sm text-slate-300 transition hover:border-slate-600 hover:text-white"
+          >
+            Scan your member QR, use the handheld scanner, or click here for input the code member.
+          </button>
           {scanSupported ? (
             <button
               type="button"
@@ -266,6 +297,40 @@ export default function PublicCheckIn() {
         {scanError ? (
           <div className="mt-4 rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
             {String(scanError)}
+          </div>
+        ) : null}
+
+        {manualOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+            <div className="w-full max-w-sm rounded-3xl border border-slate-800 bg-black/95 p-6 shadow-xl">
+              <div className="text-xs uppercase tracking-[0.3em] text-slate-400">Manual input</div>
+              <h2 className="mt-2 text-lg font-semibold">Enter member code</h2>
+              <form onSubmit={submitManualInput} className="mt-4 space-y-3">
+                <input
+                  type="text"
+                  value={manualCode}
+                  onChange={(event) => setManualCode(event.target.value)}
+                  placeholder="Member code"
+                  className="w-full rounded-2xl border border-slate-700 bg-black px-4 py-3 text-sm text-white outline-none focus:border-pink-400"
+                  autoFocus
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="submit"
+                    className="rounded-full bg-pink-500 px-4 py-2 text-sm font-semibold text-white"
+                  >
+                    Lookup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeManualInput}
+                    className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         ) : null}
 
